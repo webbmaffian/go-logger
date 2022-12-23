@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Client interface {
@@ -25,28 +27,30 @@ type Client interface {
 type ClientOptions struct {
 	Host         string
 	Port         int
-	ClientId     []byte
-	ClientSecret []byte
+	ClientId     uuid.UUID
+	ClientSecret Secret
 	Buffer       int
 }
 
 type client struct {
-	opt          ClientOptions
-	ctx          context.Context
-	wg           sync.WaitGroup
-	conn         net.Conn
-	ch           chan *entry
-	entryPool    sync.Pool
-	buf          [entrySize]byte
-	clientId     [16]byte
-	clientSecret [32]byte
-	encrypt      cipher.AEAD
-	connected    bool
-	closed       bool
+	opt       ClientOptions
+	ctx       context.Context
+	wg        sync.WaitGroup
+	conn      net.Conn
+	ch        chan *entry
+	entryPool sync.Pool
+	buf       [entrySize]byte
+	encrypt   cipher.AEAD
+	connected bool
+	closed    bool
 }
 
 func NewClient(ctx context.Context, opt ClientOptions) (Client, error) {
 	var err error
+
+	if opt.Buffer <= 0 {
+		opt.Buffer = 100
+	}
 
 	c := &client{
 		ctx: ctx,
@@ -59,7 +63,7 @@ func NewClient(ctx context.Context, opt ClientOptions) (Client, error) {
 		},
 	}
 
-	aes, err := aes.NewCipher(c.clientSecret[:])
+	aes, err := aes.NewCipher(c.opt.ClientSecret[:])
 
 	if err != nil {
 		return nil, err
@@ -201,7 +205,7 @@ func (c *client) authenticate() (err error) {
 	}
 
 	// Write client ID
-	c.conn.Write(c.clientId[:])
+	c.conn.Write(c.opt.ClientId[:])
 
 	// Write challenge
 	c.conn.Write(challenge[:])

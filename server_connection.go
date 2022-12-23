@@ -6,18 +6,21 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type serverConnection struct {
 	buf            [entrySize]byte
-	clientSecret   [32]byte
-	clientId       [16]byte
+	clientSecret   Secret
+	clientId       uuid.UUID
 	sizeBuf        [2]byte
+	tenantId       uint32
 	encrypt        cipher.AEAD
 	authenticator  Authenticator
 	rawEntryReader RawEntryReader
@@ -48,7 +51,7 @@ func (s *serverConnection) authenticate(ctx context.Context, conn net.Conn) (err
 	}
 
 	if s.authenticator != nil {
-		if err = s.authenticator.LoadClientSecret(ctx, s.clientId[:], s.clientSecret[:]); err != nil {
+		if s.tenantId, s.clientSecret, err = s.authenticator.LoadClientSecret(ctx, s.clientId); err != nil {
 			return
 		}
 	}
@@ -93,7 +96,7 @@ func (s *serverConnection) readEntries(ctx context.Context, r io.Reader) (err er
 	size := int(binary.BigEndian.Uint16(s.sizeBuf[:]))
 
 	if size < 28 {
-		return errors.New("Too short message")
+		return fmt.Errorf("too short message: only %d bytes, expected at least 28 bytes", size)
 	}
 
 	if _, err = readFull(ctx, r, s.buf[:size]); err != nil {
@@ -109,7 +112,7 @@ func (s *serverConnection) readEntries(ctx context.Context, r io.Reader) (err er
 	}
 
 	if s.rawEntryReader != nil {
-		if err = s.rawEntryReader.Read(s.buf[:size]); err != nil {
+		if err = s.rawEntryReader.Read(s.tenantId, s.buf[:size]); err != nil {
 			log.Println("Invalid entry:", err)
 			return
 		}

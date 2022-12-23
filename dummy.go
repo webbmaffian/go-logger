@@ -38,6 +38,6 @@ func (d dummyAuthenticator) LoadClientSecret(ctx context.Context, clientId []byt
 
 type dummyRawEntryReader struct{}
 
-func (d dummyRawEntryReader) Read(b []byte) error {
+func (d dummyRawEntryReader) Read(clientId []byte, b []byte) error {
 	return nil
 }

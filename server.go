@@ -6,6 +6,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 func NewServer(opt ServerOptions) Server {
@@ -19,11 +21,11 @@ type Server interface {
 }
 
 type Authenticator interface {
-	LoadClientSecret(ctx context.Context, clientId []byte, clientSecret []byte) error
+	LoadClientSecret(ctx context.Context, clientId uuid.UUID) (tenantId uint32, clientSecret Secret, err error)
 }
 
 type RawEntryReader interface {
-	Read(b []byte) error
+	Read(tenantId uint32, b []byte) error
 }
 
 type ServerOptions struct {
