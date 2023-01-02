@@ -2,12 +2,17 @@ package logger
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/webbmaffian/go-logger/auth"
 )
 
 func NewServer(opt ServerOptions) Server {
@@ -21,7 +26,7 @@ type Server interface {
 }
 
 type Authenticator interface {
-	LoadClientSecret(ctx context.Context, clientId uuid.UUID) (tenantId uint32, clientSecret Secret, err error)
+	Authenticate(ctx context.Context, clientId uuid.UUID, certId uuid.UUID) (err error)
 }
 
 type RawEntryReader interface {
@@ -33,12 +38,18 @@ type ServerOptions struct {
 	Port           int
 	Authenticator  Authenticator
 	RawEntryReader RawEntryReader
+	RootCa         auth.Certificate
 }
 
 type server struct {
-	listener net.Listener
-	opt      ServerOptions
+	opt ServerOptions
 }
+
+var (
+	ErrInvalidCertificate  = errors.New("invalid certificate")
+	ErrInvalidSerialNumber = errors.New("invalid serial number")
+	ErrInvalidClientId     = errors.New("invalid client ID")
+)
 
 func (s *server) Listen(ctx context.Context) (err error) {
 	var address strings.Builder
@@ -47,7 +58,51 @@ func (s *server) Listen(ctx context.Context) (err error) {
 	address.WriteByte(':')
 	address.WriteString(strconv.Itoa(s.opt.Port))
 
-	s.listener, err = net.Listen("tcp", address.String())
+	rootCa, err := s.opt.RootCa.Parse()
+
+	if err != nil {
+		return
+	}
+
+	var rootCaPool x509.CertPool
+	rootCaPool.AddCert(rootCa)
+
+	listener, err := tls.Listen("tcp", address.String(), &tls.Config{
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		ClientCAs:  &rootCaPool,
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			if cs.PeerCertificates == nil || cs.PeerCertificates[0] == nil {
+				return ErrInvalidCertificate
+			}
+
+			cert := cs.PeerCertificates[0]
+
+			if cert.SerialNumber == nil {
+				return ErrInvalidSerialNumber
+			}
+
+			certId, err := uuid.ParseBytes(cert.SerialNumber.Bytes())
+
+			if err != nil {
+				return ErrInvalidSerialNumber
+			}
+
+			clientId, err := uuid.ParseBytes(cert.SubjectKeyId)
+
+			if s.opt.Authenticator == nil {
+				return nil
+			}
+
+			ctx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+
+			return s.opt.Authenticator.Authenticate(ctx, clientId, certId)
+		},
+	})
+
+	if err != nil {
+		return
+	}
 
 	log.Println("Listening on:", address.String())
 
@@ -63,7 +118,7 @@ func (s *server) Listen(ctx context.Context) (err error) {
 		}
 
 		var conn net.Conn
-		conn, err = s.listener.Accept()
+		conn, err = listener.Accept()
 
 		log.Println("New client")
 
@@ -72,13 +127,13 @@ func (s *server) Listen(ctx context.Context) (err error) {
 			return
 		}
 
-		go s.handleRequest(ctx, conn)
+		go s.handleRequest(ctx, conn.(*tls.Conn))
 	}
 
-	return s.listener.Close()
+	return listener.Close()
 }
 
-func (s *server) handleRequest(ctx context.Context, conn net.Conn) {
+func (s *server) handleRequest(ctx context.Context, conn *tls.Conn) {
 	var err error
 	serverConn := serverConnection{
 		authenticator:  s.opt.Authenticator,
