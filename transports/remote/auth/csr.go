@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"net"
 	"os"
 	"strings"
 )
@@ -23,6 +24,7 @@ func CreateCsr(privateKey PrivateKey) (csr Csr, err error) {
 		Subject: pkix.Name{
 			CommonName: hostname,
 		},
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1)},
 	}, privateKey.key)
 }
 
@@ -66,4 +68,26 @@ func (c Csr) String() string {
 
 func (c Csr) Parse() (*x509.CertificateRequest, error) {
 	return x509.ParseCertificateRequest(c)
+}
+
+func (c Csr) ToFile(path string) (err error) {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+
+	if err != nil {
+		return
+	}
+
+	defer f.Close()
+
+	return c.Encode(f)
+}
+
+func (c Csr) FromFile(path string) (err error) {
+	b, err := os.ReadFile(path)
+
+	if err != nil {
+		return
+	}
+
+	return c.Decode(b)
 }

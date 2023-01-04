@@ -41,7 +41,12 @@ import (
 
 */
 
-const entrySize = math.MaxUint16 // 3 bytes
+const entrySize = math.MaxUint16 // 2 bytes
+
+type Entry interface {
+	EncodeEntry(b []byte) (s int)
+	DecodeEntry(b []byte) (err error)
+}
 
 type entry struct {
 	id         xid.ID

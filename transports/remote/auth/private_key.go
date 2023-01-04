@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
 	"io"
+	"os"
 	"strings"
 )
 
@@ -52,4 +54,32 @@ func (p PrivateKey) String() string {
 	var b strings.Builder
 	p.Encode(&b)
 	return b.String()
+}
+
+func (p PrivateKey) Bytes() []byte {
+	var b bytes.Buffer
+	p.Encode(&b)
+	return b.Bytes()
+}
+
+func (p PrivateKey) ToFile(path string) (err error) {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+
+	if err != nil {
+		return
+	}
+
+	defer f.Close()
+
+	return p.Encode(f)
+}
+
+func (p PrivateKey) FromFile(path string) (err error) {
+	b, err := os.ReadFile(path)
+
+	if err != nil {
+		return
+	}
+
+	return p.Decode(b)
 }

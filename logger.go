@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"log"
 	"math"
 	"strconv"
 	"time"
@@ -10,18 +11,46 @@ import (
 	"github.com/rs/xid"
 )
 
-func New(ctx context.Context, client Client) Logger {
+func New(ctx context.Context, output Transport) Logger {
+	queue := newEntryQueue(100)
+	fastTime := fastime.New().StartTimerD(ctx, time.Second)
+	output.SetNowFunc(fastTime.Now)
+
+	go func() {
+		var buf [entrySize]byte
+
+		for {
+			select {
+			case err := <-ctx.Done():
+				log.Println(err)
+				break
+			case e, ok := <-queue.ch:
+				if ok {
+					s := e.encode(buf[:])
+
+					if _, err := output.Write(buf[:s]); err != nil {
+						log.Println(err)
+					}
+				}
+
+				queue.releaseEntry(e)
+			}
+		}
+
+		output.Close()
+	}()
+
 	return Logger{
-		ctx:    ctx,
-		client: client,
-		time:   fastime.New().StartTimerD(ctx, time.Second),
+		ctx:   ctx,
+		queue: queue,
+		time:  fastTime,
 	}
 }
 
 type Logger struct {
-	ctx    context.Context
-	client Client
-	time   fastime.Fastime
+	ctx   context.Context
+	queue *entryQueue
+	time  fastime.Fastime
 }
 
 func (l *Logger) Emerg(message string, args ...any) xid.ID {
@@ -57,7 +86,7 @@ func (l *Logger) Debug(message string, args ...any) xid.ID {
 }
 
 func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
-	e := l.client.AcquireEntry()
+	e := l.queue.acquireEntry()
 
 	e.id = xid.NewWithTime(l.time.Now())
 	e.level = 2
@@ -102,14 +131,14 @@ func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 		}
 	}
 
-	l.client.Write(e)
+	l.queue.putEntry(e)
 
 	return e.id
 }
 
-func (l *Logger) Close() error {
+func (l *Logger) Close() {
 	l.time.Stop()
-	return l.client.Close()
+	l.queue.close()
 }
 
 func Meta(key string, value string) meta {
