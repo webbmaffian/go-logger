@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"math"
 
 	"github.com/rs/xid"
 )
@@ -41,7 +40,7 @@ import (
 
 */
 
-const entrySize = math.MaxUint16 // 2 bytes
+const entrySize = 65_507 // Maxiumum size of a UDP packet
 
 type Entry struct {
 	id         xid.ID

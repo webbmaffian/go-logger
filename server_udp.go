@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-type ServerTCPOptions struct {
+type ServerUDPOptions struct {
 	Host string
 	Port int
 }
 
-func (s *server) ListenTCP(opt ServerTCPOptions) (err error) {
+func (s *server) ListenUDP(opt ServerUDPOptions) (err error) {
 	if opt.Host == "" {
 		opt.Host = "localhost"
 	}
@@ -29,7 +29,7 @@ func (s *server) ListenTCP(opt ServerTCPOptions) (err error) {
 	address.WriteByte(':')
 	address.WriteString(strconv.Itoa(opt.Port))
 
-	listener, err := net.Listen("tcp", address.String())
+	listener, err := net.ListenPacket("udp", address.String())
 
 	if err != nil {
 		return
@@ -54,26 +54,15 @@ func (s *server) ListenTCP(opt ServerTCPOptions) (err error) {
 			break
 		}
 
-		var conn net.Conn
-		conn, err = listener.Accept()
-
-		if err != nil {
-			log.Println(err)
-			continue
+		if err = s.handleUDPRequest(listener); err != nil {
+			log.Println("server:", err)
 		}
-
-		go func() {
-			if err = s.handleTCPRequest(conn); err != nil {
-				log.Println("server:", err)
-			}
-		}()
 	}
 
 	return listener.Close()
 }
 
-func (s *server) handleTCPRequest(conn net.Conn) (err error) {
-	defer conn.Close()
+func (s *server) handleUDPRequest(conn net.PacketConn) (err error) {
 	log.Println("server: incoming connection")
 
 	var sizeBuf [2]byte
@@ -87,7 +76,7 @@ func (s *server) handleTCPRequest(conn net.Conn) (err error) {
 			return
 		}
 
-		if _, err = readFull(s.ctx, conn, sizeBuf[:]); err != nil {
+		if _, err = readFullPackets(s.ctx, conn, sizeBuf[:]); err != nil {
 			return err
 		}
 
@@ -99,7 +88,7 @@ func (s *server) handleTCPRequest(conn net.Conn) (err error) {
 			return
 		}
 
-		if n, err = readFull(s.ctx, conn, buf[:binary.BigEndian.Uint16(sizeBuf[:])]); err != nil {
+		if n, err = readFullPackets(s.ctx, conn, buf[:binary.BigEndian.Uint16(sizeBuf[:])]); err != nil {
 			return err
 		}
 

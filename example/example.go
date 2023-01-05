@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"time"
 
@@ -52,7 +53,7 @@ import (
 // }
 
 func main() {
-	if err := testTCP(); err != nil {
+	if err := testUDP(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -227,6 +228,71 @@ func testTCP() (err error) {
 			}
 
 			logger.Debug("Hi there")
+
+			// client.Write([]byte("hellooo"))
+			time.Sleep(time.Second)
+		}
+
+	}()
+
+	wg.Wait()
+	return
+}
+
+func testUDP() (err error) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer stop()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		server := logger.NewServer(ctx, logger.ServerOptions{
+			EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+				var e logger.Entry
+
+				if err = e.Decode(b); err != nil {
+					return
+				}
+
+				log.Printf("%d: %+v\n", bucketId, e)
+				return
+			}),
+		})
+
+		if err := server.ListenUDP(logger.ServerUDPOptions{
+			Host: "127.0.0.1",
+			Port: 4610,
+		}); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// time.Sleep(time.Second * 3)
+
+		client := logger.NewUDPClient(ctx, logger.ClientTCPOptions{
+			Host: "127.0.0.1",
+			Port: 4610,
+		})
+
+		logger := logger.New(ctx, client)
+
+		var i int
+
+		for {
+			if ctx.Err() != nil {
+				break
+			}
+
+			i++
+
+			logger.Debug("Hi there " + strconv.Itoa(i))
 
 			// client.Write([]byte("hellooo"))
 			time.Sleep(time.Second)

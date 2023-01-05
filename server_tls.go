@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -146,7 +145,7 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 	bucketId := binary.BigEndian.Uint64(cert.SubjectKeyId)
 
 	var sizeBuf [2]byte
-	var buf [math.MaxUint16]byte
+	var buf [entrySize]byte
 	var n int
 
 	for {

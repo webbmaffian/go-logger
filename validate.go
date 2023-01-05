@@ -3,7 +3,6 @@ package logger
 import (
 	"encoding/binary"
 	"errors"
-	"math"
 )
 
 var (
@@ -23,7 +22,7 @@ func validateEntryBytes(b []byte) (err error) {
 		return ErrTooShort
 	}
 
-	if totalLen > math.MaxUint16 {
+	if totalLen > entrySize {
 		return ErrTooLong
 	}
 
