@@ -9,7 +9,7 @@ import (
 func BenchmarkEntryEncode(b *testing.B) {
 	var buf [1024]byte
 
-	e := entry{
+	e := Entry{
 		id:         xid.New(),
 		category:   "foobar",
 		procId:     "barfoo",
@@ -25,14 +25,14 @@ func BenchmarkEntryEncode(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		e.encode(buf[:])
+		e.Encode(buf[:])
 	}
 }
 
 func BenchmarkEntryDecode(b *testing.B) {
 	var buf [1024]byte
 
-	e := entry{
+	e := Entry{
 		id:         xid.New(),
 		category:   "foobar",
 		procId:     "barfoo",
@@ -45,11 +45,11 @@ func BenchmarkEntryDecode(b *testing.B) {
 		level:      5,
 	}
 
-	size := e.encode(buf[:])
+	size := e.Encode(buf[:])
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		e.decode(buf[:size])
+		e.Decode(buf[:size])
 	}
 }

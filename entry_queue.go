@@ -4,34 +4,34 @@ import "sync"
 
 func newEntryQueue(bufferSize int) *entryQueue {
 	return &entryQueue{
-		ch: make(chan *entry, bufferSize),
+		ch: make(chan *Entry, bufferSize),
 		pool: sync.Pool{
 			New: func() any {
-				return new(entry)
+				return new(Entry)
 			},
 		},
 	}
 }
 
 type entryQueue struct {
-	ch   chan *entry
+	ch   chan *Entry
 	pool sync.Pool
 }
 
-func (q *entryQueue) acquireEntry() *entry {
-	return q.pool.Get().(*entry)
+func (q *entryQueue) acquireEntry() *Entry {
+	return q.pool.Get().(*Entry)
 }
 
-func (q *entryQueue) releaseEntry(e *entry) {
+func (q *entryQueue) releaseEntry(e *Entry) {
 	q.pool.Put(e)
 }
 
-func (q *entryQueue) nextEntry() (e *entry, ok bool) {
+func (q *entryQueue) nextEntry() (e *Entry, ok bool) {
 	e, ok = <-q.ch
 	return
 }
 
-func (q *entryQueue) putEntry(e *entry) {
+func (q *entryQueue) putEntry(e *Entry) {
 	q.ch <- e
 }
 

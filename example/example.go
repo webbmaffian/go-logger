@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/x509/pkix"
-	"encoding/binary"
 	"log"
 	"net"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/transports/remote"
 	"github.com/webbmaffian/go-logger/transports/remote/auth"
 )
@@ -103,7 +103,7 @@ func start() (err error) {
 	}
 
 	if clientCert, err = auth.CreateCertificate(serverKey, rootCa, csr, auth.CertificateOptions{
-		SubjectKeyId: binary.BigEndian.AppendUint32(nil, 1),
+		SubjectKeyId: 1,
 		Expiry:       time.Now().AddDate(100, 0, 0),
 		Type:         auth.Client,
 	}); err != nil {
@@ -121,15 +121,26 @@ func start() (err error) {
 	go func() {
 		defer wg.Done()
 
-		server := remote.NewServer(remote.ServerOptions{
+		server := remote.NewServer(ctx, remote.ServerOptions{
+			EntryReader: remote.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+				var e logger.Entry
+
+				if err = e.Decode(b); err != nil {
+					return
+				}
+
+				log.Printf("%d: %+v\n", bucketId, e)
+				return
+			}),
+		})
+
+		if err := server.ListenTLS(remote.ServerTLSOptions{
 			Host:        "127.0.0.1",
 			Port:        4610,
 			RootCa:      rootCa,
 			Certificate: serverCert,
 			PrivateKey:  serverKey,
-		})
-
-		if err := server.Listen(ctx); err != nil {
+		}); err != nil {
 			log.Println(err)
 		}
 	}()
@@ -148,12 +159,16 @@ func start() (err error) {
 			PrivateKey:  clientKey,
 		})
 
+		logger := logger.New(ctx, client)
+
 		for {
 			if ctx.Err() != nil {
 				break
 			}
 
-			client.Write([]byte("hellooo"))
+			logger.Debug("Hi there")
+
+			// client.Write([]byte("hellooo"))
 			time.Sleep(time.Second)
 		}
 

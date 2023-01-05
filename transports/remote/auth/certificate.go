@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"encoding/pem"
 	"errors"
 	"io"
@@ -35,7 +36,7 @@ const (
 
 type CertificateOptions struct {
 	Subject      pkix.Name
-	SubjectKeyId []byte
+	SubjectKeyId uint64
 	PublicKey    ed25519.PublicKey
 	Expiry       time.Time
 	DNSNames     []string
@@ -46,8 +47,8 @@ type CertificateOptions struct {
 func (c CertificateOptions) parseCertificateDetails(cert *x509.Certificate) (err error) {
 	cert.Subject = mergePkixNames(cert.Subject, c.Subject)
 
-	if c.SubjectKeyId != nil {
-		cert.SubjectKeyId = c.SubjectKeyId
+	if c.SubjectKeyId != 0 {
+		cert.SubjectKeyId = binary.BigEndian.AppendUint64(nil, c.SubjectKeyId)
 	}
 
 	if c.PublicKey != nil {

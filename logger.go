@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"encoding/binary"
 	"io"
 	"log"
 	"math"
@@ -31,9 +32,10 @@ func New(ctx context.Context, output io.WriteCloser) Logger {
 				break loop
 			case e, ok := <-queue.ch:
 				if ok {
-					s := e.encode(buf[:])
+					s := e.Encode(buf[2:])
+					binary.BigEndian.PutUint16(buf[:], uint16(s))
 
-					if _, err := output.Write(buf[:s]); err != nil {
+					if _, err := output.Write(buf[:s+2]); err != nil {
 						log.Println(err)
 					}
 				}

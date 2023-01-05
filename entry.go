@@ -43,12 +43,7 @@ import (
 
 const entrySize = math.MaxUint16 // 2 bytes
 
-type Entry interface {
-	EncodeEntry(b []byte) (s int)
-	DecodeEntry(b []byte) (err error)
-}
-
-type entry struct {
+type Entry struct {
 	id         xid.ID
 	severity   Severity
 	category   string
@@ -62,11 +57,11 @@ type entry struct {
 	level      int
 }
 
-func (e *entry) Read(b []byte) (n int, err error) {
-	return e.encode(b), io.EOF
+func (e *Entry) Read(b []byte) (n int, err error) {
+	return e.Encode(b), io.EOF
 }
 
-func (e *entry) encode(b []byte) (s int) {
+func (e *Entry) Encode(b []byte) (s int) {
 	var i uint8
 
 	// 0. Entry ID (XID)
@@ -131,7 +126,7 @@ func (e *entry) encode(b []byte) (s int) {
 	return
 }
 
-func (e *entry) decode(b []byte) (err error) {
+func (e *Entry) Decode(b []byte) (err error) {
 	var s int = 13
 	total := len(b)
 

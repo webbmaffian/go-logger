@@ -11,12 +11,12 @@ type dummyWriter struct {
 	entryPool sync.Pool
 }
 
-func (d *dummyWriter) AcquireEntry() *entry {
-	return d.entryPool.Get().(*entry)
+func (d *dummyWriter) AcquireEntry() *Entry {
+	return d.entryPool.Get().(*Entry)
 }
 
-func (d *dummyWriter) Write(e *entry) {
-	e.encode(d.buf[:])
+func (d *dummyWriter) Write(e *Entry) {
+	e.Encode(d.buf[:])
 	d.entryPool.Put(e)
 }
 
