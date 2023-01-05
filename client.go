@@ -1,4 +1,4 @@
-package remote
+package logger
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/webbmaffian/go-logger"
-	"github.com/webbmaffian/go-logger/transports/remote/auth"
+	"github.com/webbmaffian/go-logger/auth"
 )
 
 type ClientOptions struct {
@@ -30,7 +29,7 @@ type client struct {
 	time   func() time.Time
 }
 
-func NewClient(ctx context.Context, opt ClientOptions) logger.Transport {
+func NewClient(ctx context.Context, opt ClientOptions) Transport {
 	cert := opt.Certificate.TLS(opt.PrivateKey)
 
 	return &client{

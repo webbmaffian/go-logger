@@ -1,4 +1,4 @@
-package remote
+package logger
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webbmaffian/go-logger/transports/remote/auth"
+	"github.com/webbmaffian/go-logger/auth"
 )
 
 type ServerTLSOptions struct {

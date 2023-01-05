@@ -2,18 +2,11 @@ package logger
 
 import (
 	"context"
-	"sync"
 	"testing"
 )
 
 func BenchmarkLog(b *testing.B) {
-	logger := New(context.Background(), &dummyWriter{
-		entryPool: sync.Pool{
-			New: func() any {
-				return new(entry)
-			},
-		},
-	})
+	logger := New(context.Background(), &dummyWriter{})
 
 	b.ResetTimer()
 
@@ -31,15 +24,10 @@ func BenchmarkLogTcp(b *testing.B) {
 
 	// go server.Listen(ctx)
 
-	client, err := NewClient(ctx, ClientOptions{
-		Host:   "localhost",
-		Port:   4610,
-		Buffer: 100,
+	client := NewClient(ctx, ClientOptions{
+		Host: "localhost",
+		Port: 4610,
 	})
-
-	if err != nil {
-		b.Fatal(err)
-	}
 
 	logger := New(ctx, client)
 
@@ -60,15 +48,10 @@ func BenchmarkLogTcpParallell(b *testing.B) {
 
 	// go server.Listen(ctx)
 
-	client, err := NewClient(ctx, ClientOptions{
-		Host:   "localhost",
-		Port:   4610,
-		Buffer: 100,
+	client := NewClient(ctx, ClientOptions{
+		Host: "localhost",
+		Port: 4610,
 	})
-
-	if err != nil {
-		b.Fatal(err)
-	}
 
 	logger := New(ctx, client)
 

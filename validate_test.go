@@ -9,7 +9,7 @@ import (
 func TestValidateEntryBytes(t *testing.T) {
 	var buf [1024]byte
 
-	e := entry{
+	e := Entry{
 		id:         xid.New(),
 		category:   "foobar",
 		procId:     "barfoo",
@@ -22,7 +22,7 @@ func TestValidateEntryBytes(t *testing.T) {
 		level:      5,
 	}
 
-	size := e.encode(buf[:])
+	size := e.Encode(buf[:])
 
 	if err := validateEntryBytes(buf[:size]); err != nil {
 		t.Error(err)
@@ -32,7 +32,7 @@ func TestValidateEntryBytes(t *testing.T) {
 func BenchmarkValidateEntryBytes(b *testing.B) {
 	var buf [1024]byte
 
-	e := entry{
+	e := Entry{
 		id:         xid.New(),
 		category:   "foobar",
 		procId:     "barfoo",
@@ -45,7 +45,7 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 		level:      5,
 	}
 
-	size := e.encode(buf[:])
+	size := e.Encode(buf[:])
 
 	b.ResetTimer()
 

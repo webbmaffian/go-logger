@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"github.com/webbmaffian/go-logger"
-	"github.com/webbmaffian/go-logger/transports/remote"
-	"github.com/webbmaffian/go-logger/transports/remote/auth"
+	"github.com/webbmaffian/go-logger/auth"
 )
 
 // func main() {
@@ -121,8 +120,8 @@ func start() (err error) {
 	go func() {
 		defer wg.Done()
 
-		server := remote.NewServer(ctx, remote.ServerOptions{
-			EntryReader: remote.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+		server := logger.NewServer(ctx, logger.ServerOptions{
+			EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
 				var e logger.Entry
 
 				if err = e.Decode(b); err != nil {
@@ -134,7 +133,7 @@ func start() (err error) {
 			}),
 		})
 
-		if err := server.ListenTLS(remote.ServerTLSOptions{
+		if err := server.ListenTLS(logger.ServerTLSOptions{
 			Host:        "127.0.0.1",
 			Port:        4610,
 			RootCa:      rootCa,
@@ -151,7 +150,7 @@ func start() (err error) {
 
 		// time.Sleep(time.Second * 3)
 
-		client := remote.NewClient(ctx, remote.ClientOptions{
+		client := logger.NewClient(ctx, logger.ClientOptions{
 			Host:        "127.0.0.1",
 			Port:        4610,
 			RootCa:      rootCa,
