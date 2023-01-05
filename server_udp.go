@@ -65,34 +65,35 @@ func (s *server) ListenUDP(opt ServerUDPOptions) (err error) {
 func (s *server) handleUDPRequest(conn net.PacketConn) (err error) {
 	log.Println("server: incoming connection")
 
-	var sizeBuf [2]byte
 	var buf [entrySize]byte
 	var n int
 
 	for {
-		log.Println("server: waiting for message size")
-		// Close connection if it's been silent for 10 minutes
-		if err = conn.SetReadDeadline(s.time.Now().Add(time.Minute * 10)); err != nil {
+		if err = s.ctx.Err(); err != nil {
 			return
 		}
 
-		if _, err = readFullPackets(s.ctx, conn, sizeBuf[:]); err != nil {
-			return err
+		log.Println("server: waiting for message")
+
+		conn.SetReadDeadline(s.time.Now().Add(time.Second))
+		n, _, err = conn.ReadFrom(buf[:])
+
+		if err != nil {
+			log.Println(err)
+			continue
 		}
 
-		log.Printf("server: received: %08b\n", sizeBuf[:])
-		log.Printf("server: waiting for message of %d bytes\n", binary.BigEndian.Uint16(sizeBuf[:]))
-
-		// After recieved size of message, wait up to 1 minute for the rest of the message
-		if err = conn.SetReadDeadline(s.time.Now().Add(time.Minute)); err != nil {
-			return
+		if n < 2 {
+			continue
 		}
 
-		if n, err = readFullPackets(s.ctx, conn, buf[:binary.BigEndian.Uint16(sizeBuf[:])]); err != nil {
-			return err
+		msgLen := int(binary.BigEndian.Uint16(buf[:2]))
+
+		if msgLen != n-2 {
+			continue
 		}
 
-		if err = s.opt.EntryReader.Read(0, buf[:n]); err != nil {
+		if err = s.opt.EntryReader.Read(0, buf[2:n]); err != nil {
 			return
 		}
 	}
