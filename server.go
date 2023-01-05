@@ -20,7 +20,7 @@ func NewServer(ctx context.Context, opt ServerOptions) Server {
 
 type Server interface {
 	ListenTLS(opt ServerTLSOptions) (err error)
-	// ListenTCP(opt ServerTCPOptions) (err error)
+	ListenTCP(opt ServerTCPOptions) (err error)
 	// ListenUDP(opt ServerUDPOptions) (err error)
 }
 

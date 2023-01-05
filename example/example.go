@@ -52,12 +52,12 @@ import (
 // }
 
 func main() {
-	if err := start(); err != nil {
+	if err := testTCP(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func start() (err error) {
+func testTLS() (err error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
@@ -150,12 +150,73 @@ func start() (err error) {
 
 		// time.Sleep(time.Second * 3)
 
-		client := logger.NewClient(ctx, logger.ClientOptions{
+		client := logger.NewTLSClient(ctx, logger.ClientTLSOptions{
 			Host:        "127.0.0.1",
 			Port:        4610,
 			RootCa:      rootCa,
 			Certificate: clientCert,
 			PrivateKey:  clientKey,
+		})
+
+		logger := logger.New(ctx, client)
+
+		for {
+			if ctx.Err() != nil {
+				break
+			}
+
+			logger.Debug("Hi there")
+
+			// client.Write([]byte("hellooo"))
+			time.Sleep(time.Second)
+		}
+
+	}()
+
+	wg.Wait()
+	return
+}
+
+func testTCP() (err error) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer stop()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		server := logger.NewServer(ctx, logger.ServerOptions{
+			EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+				var e logger.Entry
+
+				if err = e.Decode(b); err != nil {
+					return
+				}
+
+				log.Printf("%d: %+v\n", bucketId, e)
+				return
+			}),
+		})
+
+		if err := server.ListenTCP(logger.ServerTCPOptions{
+			Host: "127.0.0.1",
+			Port: 4610,
+		}); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// time.Sleep(time.Second * 3)
+
+		client := logger.NewTCPClient(ctx, logger.ClientTCPOptions{
+			Host: "127.0.0.1",
+			Port: 4610,
 		})
 
 		logger := logger.New(ctx, client)

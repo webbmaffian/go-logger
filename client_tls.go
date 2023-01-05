@@ -13,7 +13,7 @@ import (
 	"github.com/webbmaffian/go-logger/auth"
 )
 
-type ClientOptions struct {
+type ClientTLSOptions struct {
 	Host        string
 	Port        int
 	Certificate auth.Certificate
@@ -21,18 +21,18 @@ type ClientOptions struct {
 	PrivateKey  auth.PrivateKey
 }
 
-type client struct {
-	opt    ClientOptions
+type tlsClient struct {
+	opt    ClientTLSOptions
 	ctx    context.Context
 	dialer tls.Dialer
 	conn   net.Conn
 	time   func() time.Time
 }
 
-func NewClient(ctx context.Context, opt ClientOptions) Transport {
+func NewTLSClient(ctx context.Context, opt ClientTLSOptions) Transport {
 	cert := opt.Certificate.TLS(opt.PrivateKey)
 
-	return &client{
+	return &tlsClient{
 		ctx:  ctx,
 		opt:  opt,
 		time: time.Now,
@@ -59,12 +59,12 @@ func NewClient(ctx context.Context, opt ClientOptions) Transport {
 	}
 }
 
-func (c *client) SetNowFunc(f func() time.Time) {
+func (c *tlsClient) SetNowFunc(f func() time.Time) {
 	c.time = f
 	c.dialer.Config.Time = f
 }
 
-func (c client) Address() string {
+func (c tlsClient) Address() string {
 	var b strings.Builder
 	b.Grow(len(c.opt.Host) + 5)
 	b.WriteString(c.opt.Host)
@@ -73,7 +73,7 @@ func (c client) Address() string {
 	return b.String()
 }
 
-func (c *client) Write(p []byte) (n int, err error) {
+func (c *tlsClient) Write(p []byte) (n int, err error) {
 	log.Printf("client: writing '%s'...\n", p)
 	var timer *time.Timer
 
@@ -101,8 +101,7 @@ loop:
 
 			log.Println("client: failed to write:", err)
 
-			c.conn.Close()
-			c.conn = nil
+			c.Close()
 		}
 
 		if timer == nil {
@@ -126,6 +125,8 @@ loop:
 	return
 }
 
-func (c *client) Close() error {
-	return nil
+func (c *tlsClient) Close() (err error) {
+	err = c.conn.Close()
+	c.conn = nil
+	return
 }

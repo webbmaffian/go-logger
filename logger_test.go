@@ -24,7 +24,7 @@ func BenchmarkLogTcp(b *testing.B) {
 
 	// go server.Listen(ctx)
 
-	client := NewClient(ctx, ClientOptions{
+	client := NewTLSClient(ctx, ClientTLSOptions{
 		Host: "localhost",
 		Port: 4610,
 	})
@@ -48,7 +48,7 @@ func BenchmarkLogTcpParallell(b *testing.B) {
 
 	// go server.Listen(ctx)
 
-	client := NewClient(ctx, ClientOptions{
+	client := NewTLSClient(ctx, ClientTLSOptions{
 		Host: "localhost",
 		Port: 4610,
 	})
