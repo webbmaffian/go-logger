@@ -27,14 +27,19 @@ type PrivateKey struct {
 	key ed25519.PrivateKey
 }
 
-func (p PrivateKey) Encode(w io.Writer) (err error) {
+func (p PrivateKey) Public() ed25519.PublicKey {
+	k := p.key.Public()
+	return k.(ed25519.PublicKey)
+}
+
+func (p PrivateKey) EncodePEM(w io.Writer) (err error) {
 	return pem.Encode(w, &pem.Block{
 		Type:  privKeyBlockType,
 		Bytes: p.key,
 	})
 }
 
-func (p *PrivateKey) Decode(b []byte) (err error) {
+func (p *PrivateKey) DecodePEM(b []byte) (err error) {
 	block, _ := pem.Decode(b)
 
 	if block == nil {
@@ -52,13 +57,13 @@ func (p *PrivateKey) Decode(b []byte) (err error) {
 
 func (p PrivateKey) String() string {
 	var b strings.Builder
-	p.Encode(&b)
+	p.EncodePEM(&b)
 	return b.String()
 }
 
-func (p PrivateKey) Bytes() []byte {
+func (p PrivateKey) PEM() []byte {
 	var b bytes.Buffer
-	p.Encode(&b)
+	p.EncodePEM(&b)
 	return b.Bytes()
 }
 
@@ -71,7 +76,7 @@ func (p PrivateKey) ToFile(path string) (err error) {
 
 	defer f.Close()
 
-	return p.Encode(f)
+	return p.EncodePEM(f)
 }
 
 func (p PrivateKey) FromFile(path string) (err error) {
@@ -81,5 +86,5 @@ func (p PrivateKey) FromFile(path string) (err error) {
 		return
 	}
 
-	return p.Decode(b)
+	return p.DecodePEM(b)
 }

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -37,14 +38,36 @@ var (
 
 type Csr []byte
 
-func (c Csr) Encode(w io.Writer) (err error) {
+func (c Csr) parseCertificateDetails(cert *x509.Certificate) (err error) {
+	req, err := c.Parse()
+
+	if err != nil {
+		return
+	}
+
+	if req.PublicKeyAlgorithm != x509.Ed25519 || req.SignatureAlgorithm != x509.PureEd25519 {
+		return ErrInvalidSignatureAlgorithm
+	}
+
+	cert.Subject = mergePkixNames(cert.Subject, req.Subject)
+	cert.DNSNames = append(cert.DNSNames, req.DNSNames...)
+	cert.IPAddresses = append(cert.IPAddresses, req.IPAddresses...)
+
+	if req.PublicKey != nil {
+		cert.PublicKey = req.PublicKey
+	}
+
+	return
+}
+
+func (c Csr) EncodePEM(w io.Writer) (err error) {
 	return pem.Encode(w, &pem.Block{
 		Type:  csrBlockType,
 		Bytes: c,
 	})
 }
 
-func (c *Csr) Decode(b []byte) (err error) {
+func (c *Csr) DecodePEM(b []byte) (err error) {
 	p, _ := pem.Decode(b)
 
 	if p == nil {
@@ -62,8 +85,14 @@ func (c *Csr) Decode(b []byte) (err error) {
 
 func (c Csr) String() string {
 	var b strings.Builder
-	c.Encode(&b)
+	c.EncodePEM(&b)
 	return b.String()
+}
+
+func (c Csr) PEM() []byte {
+	var b bytes.Buffer
+	c.EncodePEM(&b)
+	return b.Bytes()
 }
 
 func (c Csr) Parse() (*x509.CertificateRequest, error) {
@@ -79,7 +108,7 @@ func (c Csr) ToFile(path string) (err error) {
 
 	defer f.Close()
 
-	return c.Encode(f)
+	return c.EncodePEM(f)
 }
 
 func (c Csr) FromFile(path string) (err error) {
@@ -89,5 +118,5 @@ func (c Csr) FromFile(path string) (err error) {
 		return
 	}
 
-	return c.Decode(b)
+	return c.DecodePEM(b)
 }

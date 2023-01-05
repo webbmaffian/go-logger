@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -23,56 +24,108 @@ var (
 	ErrInvalidSignatureAlgorithm = errors.New("invalid signature algorithm - must be ED25519")
 )
 
-func CreateRootCA(subject pkix.Name, rootPrivKey PrivateKey, expiry time.Time) (rootCa Certificate, err error) {
-	cert, err := baseCertificate(expiry)
+type CertificateType uint8
 
-	if err != nil {
-		return
-	}
+const (
+	Unchanged CertificateType = iota
+	Client
+	Server
+	Root
+)
 
-	cert.IsCA = true
-	cert.KeyUsage |= x509.KeyUsageCertSign
-	cert.IPAddresses = []net.IP{net.IPv4(127, 0, 0, 1)}
-
-	return x509.CreateCertificate(rand.Reader, &cert, &cert, rootPrivKey.key.Public(), rootPrivKey.key)
+type CertificateOptions struct {
+	Subject      pkix.Name
+	SubjectKeyId []byte
+	PublicKey    ed25519.PublicKey
+	Expiry       time.Time
+	DNSNames     []string
+	IPAddresses  []net.IP
+	Type         CertificateType
 }
 
-// func CreateServerCertificate()
+func (c CertificateOptions) parseCertificateDetails(cert *x509.Certificate) (err error) {
+	cert.Subject = mergePkixNames(cert.Subject, c.Subject)
 
-func CreateCertificate(clientId uuid.UUID, csr Csr, rootCa Certificate, rootPrivKey PrivateKey, expiry time.Time) (signedCert Certificate, err error) {
-	req, err := csr.Parse()
-
-	if err != nil {
-		return
+	if c.SubjectKeyId != nil {
+		cert.SubjectKeyId = c.SubjectKeyId
 	}
 
-	template, err := rootCa.Parse()
-
-	if err != nil {
-		return
+	if c.PublicKey != nil {
+		cert.PublicKey = c.PublicKey
 	}
 
-	cert, err := baseCertificate(expiry)
-
-	if err != nil {
-		return
+	if !c.Expiry.IsZero() {
+		cert.NotAfter = c.Expiry
 	}
 
-	if req.SignatureAlgorithm != cert.SignatureAlgorithm {
-		err = ErrInvalidSignatureAlgorithm
-		return
+	if c.DNSNames != nil {
+		cert.DNSNames = append(cert.DNSNames, c.DNSNames...)
 	}
 
-	cert.Subject = req.Subject
-	cert.SubjectKeyId = clientId[:]
-	// cert.IPAddresses = req.IPAddresses
+	if c.IPAddresses != nil {
+		cert.IPAddresses = append(cert.IPAddresses, c.IPAddresses...)
+	}
 
-	log.Println("ip addresses:", req.IPAddresses)
+	if c.Type != Unchanged {
+		cert.IsCA = false
+		cert.BasicConstraintsValid = false
+		cert.MaxPathLenZero = false
+		cert.KeyUsage = x509.KeyUsageDigitalSignature
+		cert.ExtKeyUsage = nil
 
-	return x509.CreateCertificate(rand.Reader, &cert, template, req.PublicKey, rootPrivKey.key)
+		switch c.Type {
+
+		case Client:
+			cert.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+
+		case Server:
+			cert.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+
+		case Root:
+			cert.IsCA = true
+			cert.BasicConstraintsValid = true
+			cert.MaxPathLen = 0
+			cert.MaxPathLenZero = true
+			cert.KeyUsage |= x509.KeyUsageCertSign
+		}
+	}
+
+	return
 }
 
-func baseCertificate(expiry time.Time) (cert x509.Certificate, err error) {
+type CertificateDetails interface {
+	parseCertificateDetails(cert *x509.Certificate) (err error)
+}
+
+func CreateCertificate(rootPrivKey PrivateKey, rootCa Certificate, details ...CertificateDetails) (signedCert Certificate, err error) {
+	var template *x509.Certificate
+	cert, err := baseCertificate()
+
+	if err != nil {
+		return
+	}
+
+	if rootCa == nil {
+		cert.PublicKey = rootPrivKey.Public()
+		template = cert
+	} else if template, err = rootCa.X509(); err != nil {
+		return
+	}
+
+	for _, d := range details {
+		if err = d.parseCertificateDetails(cert); err != nil {
+			return
+		}
+	}
+
+	if cert.NotAfter.IsZero() {
+		cert.NotAfter = time.Now().AddDate(10, 0, 0)
+	}
+
+	return x509.CreateCertificate(rand.Reader, cert, template, cert.PublicKey, rootPrivKey.key)
+}
+
+func baseCertificate() (cert *x509.Certificate, err error) {
 	certId, err := uuid.NewRandom()
 
 	if err != nil {
@@ -82,14 +135,11 @@ func baseCertificate(expiry time.Time) (cert x509.Certificate, err error) {
 	var certSerial big.Int
 	certSerial.SetBytes(certId[:])
 
-	cert = x509.Certificate{
-		SerialNumber:          &certSerial,
-		SignatureAlgorithm:    x509.PureEd25519,
-		NotBefore:             time.Now(),
-		NotAfter:              expiry,
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		BasicConstraintsValid: true,
+	cert = &x509.Certificate{
+		SerialNumber:       &certSerial,
+		SignatureAlgorithm: x509.PureEd25519,
+		NotBefore:          time.Now(),
+		KeyUsage:           x509.KeyUsageDigitalSignature,
 	}
 
 	return
@@ -103,14 +153,14 @@ type Certificate []byte
 
 const certBlockType = "CERTIFICATE"
 
-func (c Certificate) Encode(w io.Writer) (err error) {
+func (c Certificate) EncodePEM(w io.Writer) (err error) {
 	return pem.Encode(w, &pem.Block{
 		Type:  certBlockType,
 		Bytes: c,
 	})
 }
 
-func (c *Certificate) Decode(b []byte) (err error) {
+func (c *Certificate) DecodePEM(b []byte) (err error) {
 	p, _ := pem.Decode(b)
 
 	if p == nil {
@@ -128,31 +178,43 @@ func (c *Certificate) Decode(b []byte) (err error) {
 
 func (c Certificate) String() string {
 	var b strings.Builder
-	c.Encode(&b)
+	c.EncodePEM(&b)
 	return b.String()
 }
 
-func (c Certificate) Bytes() []byte {
+func (c Certificate) PEM() []byte {
 	var b bytes.Buffer
-	c.Encode(&b)
+	c.EncodePEM(&b)
 	return b.Bytes()
 }
 
-func (c Certificate) Parse() (*x509.Certificate, error) {
+func (c Certificate) X509() (*x509.Certificate, error) {
 	return x509.ParseCertificate(c)
 }
 
-func (c Certificate) CertChain(key PrivateKey) []tls.Certificate {
-	// log.Println("private key:", string(key.Bytes()))
-	// cert, err := tls.X509KeyPair(c.Bytes(), key.Bytes())
+func (c Certificate) TLS(key PrivateKey) *tls.Certificate {
+	cert, err := c.X509()
 
-	// if err != nil {
-	// 	log.Println("ERROR:", err)
-	// }
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 
-	// return []tls.Certificate{cert}
+	return &tls.Certificate{
+		Certificate:                  [][]byte{c},
+		PrivateKey:                   key.key,
+		SupportedSignatureAlgorithms: []tls.SignatureScheme{tls.Ed25519},
+		Leaf:                         cert,
+	}
+}
 
-	cert, _ := c.Parse()
+func (c Certificate) TLSChain(key PrivateKey) []tls.Certificate {
+	cert, err := c.X509()
+
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 
 	return []tls.Certificate{
 		{
@@ -164,20 +226,25 @@ func (c Certificate) CertChain(key PrivateKey) []tls.Certificate {
 	}
 }
 
-func (c Certificate) CertPool(certPool *x509.CertPool) *x509.CertPool {
-	if certPool == nil {
-		certPool = x509.NewCertPool()
+func (c Certificate) X509Pool(certPool ...*x509.CertPool) *x509.CertPool {
+	var pool *x509.CertPool
+
+	if certPool != nil && certPool[0] != nil {
+		pool = certPool[0]
+	} else {
+		pool = x509.NewCertPool()
 	}
 
-	cert, err := x509.ParseCertificate(c)
+	cert, err := c.X509()
 
 	if err != nil {
 		log.Println(err)
+		return nil
 	}
 
-	certPool.AddCert(cert)
+	pool.AddCert(cert)
 
-	return certPool
+	return pool
 }
 
 func (c Certificate) ToFile(path string) (err error) {
@@ -189,7 +256,7 @@ func (c Certificate) ToFile(path string) (err error) {
 
 	defer f.Close()
 
-	return c.Encode(f)
+	return c.EncodePEM(f)
 }
 
 func (c Certificate) FromFile(path string) (err error) {
@@ -199,5 +266,29 @@ func (c Certificate) FromFile(path string) (err error) {
 		return
 	}
 
-	return c.Decode(b)
+	return c.DecodePEM(b)
+}
+
+func mergePkixNames(n1 pkix.Name, nn ...pkix.Name) pkix.Name {
+	for _, n2 := range nn {
+		if n2.CommonName != "" {
+			n1.CommonName = n2.CommonName
+		}
+
+		if n2.SerialNumber != "" {
+			n1.SerialNumber = n2.SerialNumber
+		}
+
+		n1.Country = append(n1.Country, n2.Country...)
+		n1.ExtraNames = append(n1.ExtraNames, n2.ExtraNames...)
+		n1.Locality = append(n1.Locality, n2.Locality...)
+		n1.Names = append(n1.Names, n2.Names...)
+		n1.Organization = append(n1.Organization, n2.Organization...)
+		n1.OrganizationalUnit = append(n1.OrganizationalUnit, n2.OrganizationalUnit...)
+		n1.PostalCode = append(n1.PostalCode, n2.PostalCode...)
+		n1.Province = append(n1.Province, n2.Province...)
+		n1.StreetAddress = append(n1.StreetAddress, n1.StreetAddress...)
+	}
+
+	return n1
 }

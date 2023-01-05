@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"io"
 	"log"
 	"math"
 	"strconv"
@@ -11,19 +12,23 @@ import (
 	"github.com/rs/xid"
 )
 
-func New(ctx context.Context, output Transport) Logger {
+func New(ctx context.Context, output io.WriteCloser) Logger {
 	queue := newEntryQueue(100)
 	fastTime := fastime.New().StartTimerD(ctx, time.Second)
-	output.SetNowFunc(fastTime.Now)
+
+	if transport, ok := output.(Transport); ok {
+		transport.SetNowFunc(fastTime.Now)
+	}
 
 	go func() {
 		var buf [entrySize]byte
 
+	loop:
 		for {
 			select {
 			case err := <-ctx.Done():
 				log.Println(err)
-				break
+				break loop
 			case e, ok := <-queue.ch:
 				if ok {
 					s := e.encode(buf[:])

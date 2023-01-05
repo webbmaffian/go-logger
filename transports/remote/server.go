@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/webbmaffian/go-logger/transports/remote/auth"
 )
 
@@ -26,11 +26,11 @@ type Server interface {
 }
 
 type Authenticator interface {
-	Authenticate(ctx context.Context, clientId uuid.UUID, certId uuid.UUID) (err error)
+	Authenticate(ctx context.Context, x509Cert *x509.Certificate) (err error)
 }
 
 type EntryReader interface {
-	Read(tenantId uint32, b []byte) error
+	Read(bucketId uint64, b []byte) error
 }
 
 type ServerOptions struct {
@@ -38,6 +38,7 @@ type ServerOptions struct {
 	Port          int
 	Authenticator Authenticator
 	EntryReader   EntryReader
+	Certificate   auth.Certificate
 	RootCa        auth.Certificate
 	PrivateKey    auth.PrivateKey
 }
@@ -63,8 +64,8 @@ func (s *server) Listen(ctx context.Context) (err error) {
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    s.opt.RootCa.CertPool(nil),
-		Certificates: s.opt.RootCa.CertChain(s.opt.PrivateKey),
+		ClientCAs:    s.opt.RootCa.X509Pool(),
+		Certificates: s.opt.Certificate.TLSChain(s.opt.PrivateKey),
 		NextProtos:   []string{"wallaaa"},
 		VerifyConnection: func(cs tls.ConnectionState) error {
 			if cs.PeerCertificates == nil || cs.PeerCertificates[0] == nil {
@@ -77,18 +78,6 @@ func (s *server) Listen(ctx context.Context) (err error) {
 				return ErrInvalidSerialNumber
 			}
 
-			certId, err := uuid.FromBytes(cert.SerialNumber.Bytes())
-
-			if err != nil {
-				return ErrInvalidSerialNumber
-			}
-
-			clientId, err := uuid.FromBytes(cert.SubjectKeyId)
-
-			if err != nil {
-				return ErrInvalidClientId
-			}
-
 			if s.opt.Authenticator == nil {
 				return nil
 			}
@@ -96,7 +85,7 @@ func (s *server) Listen(ctx context.Context) (err error) {
 			ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
-			return s.opt.Authenticator.Authenticate(ctx, clientId, certId)
+			return s.opt.Authenticator.Authenticate(ctx, cert)
 		},
 	})
 

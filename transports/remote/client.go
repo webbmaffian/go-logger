@@ -31,7 +31,7 @@ type client struct {
 }
 
 func NewClient(ctx context.Context, opt ClientOptions) logger.Transport {
-	certs := opt.Certificate.CertChain(opt.PrivateKey)
+	cert := opt.Certificate.TLS(opt.PrivateKey)
 
 	return &client{
 		ctx:  ctx,
@@ -39,12 +39,11 @@ func NewClient(ctx context.Context, opt ClientOptions) logger.Transport {
 		time: time.Now,
 		dialer: tls.Dialer{
 			Config: &tls.Config{
-				Certificates: certs,
 				GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 					log.Println("client: the server is requesting a certificate")
-					return &certs[0], nil
+					return cert, nil
 				},
-				RootCAs:            opt.RootCa.CertPool(nil),
+				RootCAs:            opt.RootCa.X509Pool(),
 				MinVersion:         tls.VersionTLS13,
 				MaxVersion:         tls.VersionTLS13,
 				NextProtos:         []string{"wallaaa"},
