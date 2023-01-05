@@ -68,7 +68,7 @@ func (l *Logger) Alert(message string, args ...any) xid.ID {
 	return l.log(ALERT, message, args...)
 }
 
-func (l *Logger) Crid(message string, args ...any) xid.ID {
+func (l *Logger) Crit(message string, args ...any) xid.ID {
 	return l.log(CRIT, message, args...)
 }
 
