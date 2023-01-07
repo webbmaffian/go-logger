@@ -53,7 +53,7 @@ import (
 // }
 
 func main() {
-	if err := testUDP(); err != nil {
+	if err := testTLS(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -134,9 +134,8 @@ func testTLS() (err error) {
 			}),
 		})
 
-		if err := server.ListenTLS(logger.ServerTLSOptions{
-			Host:        "127.0.0.1",
-			Port:        4610,
+		if err := server.Listen(logger.ServerTLS{
+			Address:     "127.0.0.1:4610",
 			RootCa:      rootCa,
 			Certificate: serverCert,
 			PrivateKey:  serverKey,
@@ -201,9 +200,8 @@ func testTCP() (err error) {
 			}),
 		})
 
-		if err := server.ListenTCP(logger.ServerTCPOptions{
-			Host: "127.0.0.1",
-			Port: 4610,
+		if err := server.Listen(logger.ServerTCP{
+			Address: "127.0.0.1:4610",
 		}); err != nil {
 			log.Println(err)
 		}
@@ -262,9 +260,8 @@ func testUDP() (err error) {
 			}),
 		})
 
-		if err := server.ListenUDP(logger.ServerUDPOptions{
-			Host: "127.0.0.1",
-			Port: 4610,
+		if err := server.Listen(logger.ServerUDP{
+			Address: "127.0.0.1:4610",
 		}); err != nil {
 			log.Println(err)
 		}

@@ -6,19 +6,58 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"log"
 	"net"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/webbmaffian/go-logger/auth"
 )
 
-type ServerTLSOptions struct {
-	Host          string
-	Port          int
+type ServerTCP struct {
+	Address string
+}
+
+func (opt ServerTCP) listen(s *server) (err error) {
+	netListener, err := s.listenConfig.Listen(s.ctx, "tcp", opt.Address)
+
+	if err != nil {
+		return
+	}
+
+	listener := netListener.(*net.TCPListener)
+
+	go func() {
+		<-s.ctx.Done()
+		listener.Close()
+	}()
+
+	for {
+		var conn *net.TCPConn
+
+		if conn, err = listener.AcceptTCP(); err != nil {
+			break
+		}
+
+		go func() {
+			if err := s.handleTCPRequest(conn); err != nil {
+				log.Println("server:", err)
+			}
+
+			if err := conn.Close(); err != nil {
+				log.Println("server:", err)
+			}
+		}()
+	}
+
+	if err = listener.Close(); err == net.ErrClosed {
+		err = nil
+	}
+
+	return
+}
+
+type ServerTLS struct {
+	Address       string
 	PrivateKey    auth.PrivateKey
 	Certificate   auth.Certificate
 	RootCa        auth.Certificate
@@ -29,22 +68,14 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, x509Cert *x509.Certificate) (err error)
 }
 
-func (s *server) ListenTLS(opt ServerTLSOptions) (err error) {
-	if opt.Host == "" {
-		opt.Host = "localhost"
+func (opt ServerTLS) listen(s *server) (err error) {
+	netListener, err := s.listenConfig.Listen(s.ctx, "tcp", opt.Address)
+
+	if err != nil {
+		return
 	}
 
-	if opt.Port == 0 {
-		opt.Port = 4610
-	}
-
-	var address strings.Builder
-	address.Grow(len(opt.Host) + 5)
-	address.WriteString(opt.Host)
-	address.WriteByte(':')
-	address.WriteString(strconv.Itoa(opt.Port))
-
-	listener, err := tls.Listen("tcp", address.String(), &tls.Config{
+	listener := tls.NewListener(netListener, &tls.Config{
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
@@ -62,6 +93,7 @@ func (s *server) ListenTLS(opt ServerTLSOptions) (err error) {
 				return ErrInvalidSerialNumber
 			}
 
+			// Ensure `SubjectKeyID` is a uint64
 			if len(cert.SubjectKeyId) != 8 {
 				return ErrInvalidSubjectKeyId
 			}
@@ -77,22 +109,10 @@ func (s *server) ListenTLS(opt ServerTLSOptions) (err error) {
 		},
 	})
 
-	if err != nil {
-		return
-	}
-
 	go func() {
 		<-s.ctx.Done()
-		log.Println("server: closing TCP...")
 		listener.Close()
 	}()
-
-	log.Println("server: listening on:", address.String())
-
-	if err != nil {
-		log.Println(err)
-		return
-	}
 
 	for {
 		if err = s.ctx.Err(); err != nil {
@@ -109,7 +129,11 @@ func (s *server) ListenTLS(opt ServerTLSOptions) (err error) {
 		}
 
 		go func() {
-			if err = s.handleTLSRequest(conn.(*tls.Conn)); err != nil {
+			if err := s.handleTLSRequest(conn.(*tls.Conn)); err != nil {
+				log.Println("server:", err)
+			}
+
+			if err := conn.Close(); err != nil {
 				log.Println("server:", err)
 			}
 		}()
@@ -118,8 +142,21 @@ func (s *server) ListenTLS(opt ServerTLSOptions) (err error) {
 	return listener.Close()
 }
 
+func (s *server) handleTCPRequest(conn *net.TCPConn) (err error) {
+	log.Println("server: incoming connection")
+
+	// We will never write to this connection
+	if err = conn.CloseWrite(); err != nil {
+		log.Println("server:", err)
+		conn.Close()
+		return
+	}
+
+	// We don't know any bucket ID
+	return s.handleRequest(0, conn)
+}
+
 func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
-	defer conn.Close()
 	log.Println("server: incoming connection")
 
 	if err = conn.HandshakeContext(s.ctx); err != nil {
@@ -141,34 +178,31 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 
 	cert := state.PeerCertificates[0]
 
-	// We know that the byte length is 8 from `VerifyConnection`
-	bucketId := binary.BigEndian.Uint64(cert.SubjectKeyId)
+	return s.handleRequest(binary.BigEndian.Uint64(cert.SubjectKeyId), conn)
+}
+
+func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
+	log.Println("server: incoming connection")
 
 	var sizeBuf [2]byte
 	var buf [entrySize]byte
 	var n int
 
 	for {
-		log.Println("server: waiting for message size")
-		// Close connection if it's been silent for 10 minutes
-		if err = conn.SetReadDeadline(s.time.Now().Add(time.Minute * 10)); err != nil {
-			return
-		}
-
 		if _, err = readFull(s.ctx, conn, sizeBuf[:]); err != nil {
-			return err
+			break
 		}
 
 		log.Printf("server: received: %08b\n", sizeBuf[:])
 		log.Printf("server: waiting for message of %d bytes\n", binary.BigEndian.Uint16(sizeBuf[:]))
 
 		// After recieved size of message, wait up to 1 minute for the rest of the message
-		if err = conn.SetReadDeadline(s.time.Now().Add(time.Minute)); err != nil {
-			return
-		}
+		// if err = conn.SetReadDeadline(s.time.Now().Add(time.Minute)); err != nil {
+		// 	return
+		// }
 
 		if n, err = readFull(s.ctx, conn, buf[:binary.BigEndian.Uint16(sizeBuf[:])]); err != nil {
-			return err
+			continue
 		}
 
 		if err = s.opt.EntryReader.Read(bucketId, buf[:n]); err != nil {
@@ -176,70 +210,7 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 		}
 	}
 
-	return
-
-	log.Println("server: resumed:", state.DidResume)
-	log.Println("server: TLS version:", tlsVersion(state.Version))
-	log.Println("server: Server name:", state.ServerName)
-	log.Println("server: Handshake complete:", state.HandshakeComplete)
-	log.Println("server: Negotiated protocol:", state.NegotiatedProtocol)
-
-	for i, cert := range state.PeerCertificates {
-		log.Println("server: received certificate", i, ":\n", auth.CertificateX509(cert))
-	}
-
-	var b [10]byte
-
-	for {
-		if s.ctx.Err() != nil {
-			break
-		}
-
-		n, err := conn.Read(b[:])
-
-		if err != nil {
-			log.Println("server: error:", err)
-			break
-		} else {
-			log.Printf("server: %s\n", b[:n])
-		}
-
-	}
+	log.Println("server: closing tcp connection")
 
 	return
-
-	// var err error
-	// serverConn := serverConnection{
-	// 	authenticator:  s.opt.Authenticator,
-	// 	rawEntryReader: s.opt.RawEntryReader,
-	// }
-
-	// if err = serverConn.authenticate(ctx, conn); err != nil {
-	// 	log.Println("Closing connection:", err)
-	// 	conn.Close()
-	// 	return
-	// }
-
-	// for {
-	// 	if err = serverConn.readEntries(ctx, conn); err != nil {
-	// 		log.Println("Closing connection:", err)
-	// 		conn.Close()
-	// 		break
-	// 	}
-	// }
-}
-
-func tlsVersion(v uint16) string {
-	switch v {
-	case tls.VersionTLS10:
-		return "1.0"
-	case tls.VersionTLS11:
-		return "1.1"
-	case tls.VersionTLS12:
-		return "1.2"
-	case tls.VersionTLS13:
-		return "1.3"
-	default:
-		return fmt.Sprintf("unknown (%d)", v)
-	}
 }

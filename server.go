@@ -3,6 +3,7 @@ package logger
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/kpango/fastime"
@@ -19,9 +20,11 @@ func NewServer(ctx context.Context, opt ServerOptions) Server {
 }
 
 type Server interface {
-	ListenTLS(opt ServerTLSOptions) (err error)
-	ListenTCP(opt ServerTCPOptions) (err error)
-	ListenUDP(opt ServerUDPOptions) (err error)
+	Listen(opt Listener) (err error)
+}
+
+type Listener interface {
+	listen(s *server) (err error)
 }
 
 type EntryReader interface {
@@ -33,9 +36,14 @@ type ServerOptions struct {
 }
 
 type server struct {
-	ctx  context.Context
-	opt  ServerOptions
-	time fastime.Fastime
+	ctx          context.Context
+	opt          ServerOptions
+	time         fastime.Fastime
+	listenConfig net.ListenConfig
+}
+
+func (s *server) Listen(listener Listener) (err error) {
+	return listener.listen(s)
 }
 
 var (
