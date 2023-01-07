@@ -9,17 +9,25 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kpango/fastime"
 	"github.com/rs/xid"
 )
 
-func New(ctx context.Context, output io.WriteCloser) Logger {
-	queue := newEntryQueue(100)
-	fastTime := fastime.New().StartTimerD(ctx, time.Second)
+type LoggerOptions struct {
+	TimeNow func() time.Time
+}
 
-	if transport, ok := output.(Transport); ok {
-		transport.SetNowFunc(fastTime.Now)
+func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) Logger {
+	var opt LoggerOptions
+
+	if options != nil {
+		opt = options[0]
 	}
+
+	if opt.TimeNow == nil {
+		opt.TimeNow = time.Now
+	}
+
+	queue := newEntryQueue(100)
 
 	go func() {
 		var buf [entrySize]byte
@@ -34,6 +42,8 @@ func New(ctx context.Context, output io.WriteCloser) Logger {
 				if ok {
 					s := e.Encode(buf[2:])
 					binary.BigEndian.PutUint16(buf[:], uint16(s))
+
+					log.Println("client:", *e)
 
 					if _, err := output.Write(buf[:s+2]); err != nil {
 						log.Println(err)
@@ -50,14 +60,14 @@ func New(ctx context.Context, output io.WriteCloser) Logger {
 	return Logger{
 		ctx:   ctx,
 		queue: queue,
-		time:  fastTime,
+		opt:   opt,
 	}
 }
 
 type Logger struct {
 	ctx   context.Context
 	queue *entryQueue
-	time  fastime.Fastime
+	opt   LoggerOptions
 }
 
 func (l *Logger) Emerg(message string, args ...any) xid.ID {
@@ -95,7 +105,7 @@ func (l *Logger) Debug(message string, args ...any) xid.ID {
 func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 	e := l.queue.acquireEntry()
 
-	e.id = xid.NewWithTime(l.time.Now())
+	e.id = xid.NewWithTime(l.opt.TimeNow())
 	e.level = 2
 	e.severity = severity
 	e.message = truncate(message, math.MaxUint8)
@@ -144,7 +154,6 @@ func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 }
 
 func (l *Logger) Close() {
-	l.time.Stop()
 	l.queue.close()
 }
 
