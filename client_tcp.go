@@ -44,7 +44,6 @@ func (c tcpClient) Address() string {
 }
 
 func (c *tcpClient) Write(p []byte) (n int, err error) {
-	log.Printf("client: writing '%s'...\n", p)
 	var timer *time.Timer
 
 loop:

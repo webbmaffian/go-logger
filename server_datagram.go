@@ -2,7 +2,6 @@ package logger
 
 import (
 	"encoding/binary"
-	"log"
 	"net"
 	"time"
 )
@@ -36,7 +35,7 @@ func (opt ServerUnixgram) listen(s *server) (err error) {
 }
 
 func (s *server) handleDatagram(conn net.PacketConn) (err error) {
-	log.Println("server: incoming connection")
+	// log.Println("server: incoming connection")
 
 	var buf [entrySize]byte
 	var n int
@@ -46,7 +45,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 			return
 		}
 
-		log.Println("server: waiting for message")
+		// log.Println("server: waiting for message")
 
 		conn.SetReadDeadline(s.time.Now().Add(time.Second))
 		n, _, err = conn.ReadFrom(buf[:])

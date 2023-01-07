@@ -124,7 +124,7 @@ func (opt ServerTLS) listen(s *server) (err error) {
 		conn, err = listener.Accept()
 
 		if err != nil {
-			log.Println(err)
+			log.Println("server:", err)
 			continue
 		}
 
@@ -182,31 +182,28 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 }
 
 func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
-	log.Println("server: incoming connection")
-
-	var sizeBuf [2]byte
 	var buf [entrySize]byte
-	var n int
 
 	for {
-		if _, err = readFull(s.ctx, conn, sizeBuf[:]); err != nil {
+		if _, err = readFull(s.ctx, conn, buf[:2]); err != nil {
 			break
 		}
 
-		log.Printf("server: received: %08b\n", sizeBuf[:])
-		log.Printf("server: waiting for message of %d bytes\n", binary.BigEndian.Uint16(sizeBuf[:]))
+		size := binary.BigEndian.Uint16(buf[:2])
 
-		// After recieved size of message, wait up to 1 minute for the rest of the message
-		// if err = conn.SetReadDeadline(s.time.Now().Add(time.Minute)); err != nil {
-		// 	return
-		// }
+		// log.Printf("server: waiting for message of %d bytes\n", size)
 
-		if n, err = readFull(s.ctx, conn, buf[:binary.BigEndian.Uint16(sizeBuf[:])]); err != nil {
+		if _, err = readFull(s.ctx, conn, buf[2:size+2]); err != nil {
 			continue
 		}
 
-		if err = s.opt.EntryReader.Read(bucketId, buf[:n]); err != nil {
-			return
+		if err = validateEntryBytes(buf[2 : size+2]); err != nil {
+			log.Println("server: INVALID MESSAGE")
+			break
+		}
+
+		if err = s.opt.EntryReader.Read(bucketId, buf[2:size+2]); err != nil {
+			break
 		}
 	}
 

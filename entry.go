@@ -56,6 +56,10 @@ type Entry struct {
 	level      int
 }
 
+func (e Entry) String() string {
+	return e.message
+}
+
 func (e *Entry) Read(b []byte) (n int, err error) {
 	return e.Encode(b), io.EOF
 }

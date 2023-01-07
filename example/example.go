@@ -53,7 +53,7 @@ import (
 // }
 
 func main() {
-	if err := testTLS(); err != nil {
+	if err := testTCP(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -121,18 +121,7 @@ func testTLS() (err error) {
 	go func() {
 		defer wg.Done()
 
-		server := logger.NewServer(ctx, logger.ServerOptions{
-			EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
-				var e logger.Entry
-
-				if err = e.Decode(b); err != nil {
-					return
-				}
-
-				log.Printf("%d: %+v\n", bucketId, e)
-				return
-			}),
-		})
+		server := testServer(ctx)
 
 		if err := server.Listen(logger.ServerTLS{
 			Address:     "127.0.0.1:4610",
@@ -160,15 +149,19 @@ func testTLS() (err error) {
 
 		logger := logger.New(ctx, client)
 
+		var i int
+
 		for {
 			if ctx.Err() != nil {
 				break
 			}
 
-			logger.Debug("Hi there")
+			i++
+
+			logger.Debug("Hi there " + strconv.Itoa(i))
 
 			// client.Write([]byte("hellooo"))
-			time.Sleep(time.Second)
+			// time.Sleep(time.Second)
 		}
 
 	}()
@@ -187,18 +180,7 @@ func testTCP() (err error) {
 	go func() {
 		defer wg.Done()
 
-		server := logger.NewServer(ctx, logger.ServerOptions{
-			EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
-				var e logger.Entry
-
-				if err = e.Decode(b); err != nil {
-					return
-				}
-
-				log.Printf("%d: %+v\n", bucketId, e)
-				return
-			}),
-		})
+		server := testServer(ctx)
 
 		if err := server.Listen(logger.ServerTCP{
 			Address: "127.0.0.1:4610",
@@ -220,15 +202,19 @@ func testTCP() (err error) {
 
 		logger := logger.New(ctx, client)
 
+		var i int
+
 		for {
 			if ctx.Err() != nil {
 				break
 			}
 
-			logger.Debug("Hi there")
+			i++
+
+			logger.Debug("Hi there " + strconv.Itoa(i))
 
 			// client.Write([]byte("hellooo"))
-			time.Sleep(time.Second)
+			// time.Sleep(time.Second)
 		}
 
 	}()
@@ -247,18 +233,7 @@ func testUDP() (err error) {
 	go func() {
 		defer wg.Done()
 
-		server := logger.NewServer(ctx, logger.ServerOptions{
-			EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
-				var e logger.Entry
-
-				if err = e.Decode(b); err != nil {
-					return
-				}
-
-				log.Printf("%d: %+v\n", bucketId, e)
-				return
-			}),
-		})
+		server := testServer(ctx)
 
 		if err := server.Listen(logger.ServerUDP{
 			Address: "127.0.0.1:4610",
@@ -292,11 +267,26 @@ func testUDP() (err error) {
 			logger.Debug("Hi there " + strconv.Itoa(i))
 
 			// client.Write([]byte("hellooo"))
-			time.Sleep(time.Second)
+			// time.Sleep(time.Second)
 		}
 
 	}()
 
 	wg.Wait()
 	return
+}
+
+func testServer(ctx context.Context) logger.Server {
+	return logger.NewServer(ctx, logger.ServerOptions{
+		EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+			var e logger.Entry
+
+			if err = e.Decode(b); err != nil {
+				return
+			}
+
+			log.Println("server: got message:", e)
+			return
+		}),
+	})
 }
