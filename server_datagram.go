@@ -6,43 +6,8 @@ import (
 	"time"
 )
 
-type ServerUDP struct {
-	Address string
-}
-
-func (opt ServerUDP) listen(s *server) (err error) {
-	conn, err := s.listenConfig.ListenPacket(s.ctx, "udp", opt.Address)
-
-	if err != nil {
-		return
-	}
-
-	return s.handleDatagram(conn)
-}
-
-type ServerUnixgram struct {
-	Address string
-}
-
-func (opt ServerUnixgram) listen(s *server) (err error) {
-	// conn, err := s.listenConfig.ListenPacket(s.ctx, "unixgram", opt.Address)
-
-	addr, err := net.ResolveUnixAddr("unixgram", opt.Address)
-
-	if err != nil {
-		return
-	}
-
-	conn, err := net.ListenUnixgram("unixgram", addr)
-
-	if err != nil {
-		return
-	}
-
-	return s.handleDatagram(conn)
-}
-
 func (s *server) handleDatagram(conn net.PacketConn) (err error) {
+	defer conn.Close()
 	// log.Println("server: incoming connection")
 
 	var buf [entrySize]byte

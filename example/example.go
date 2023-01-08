@@ -53,7 +53,7 @@ import (
 // }
 
 func main() {
-	if err := testUnixgram(); err != nil {
+	if err := testUnix(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -140,7 +140,7 @@ func testTLS() (err error) {
 
 		// time.Sleep(time.Second * 3)
 
-		client := logger.NewClient(ctx, logger.ClientTLS{
+		client := logger.NewClient(ctx, &logger.ClientTLS{
 			Address:     "localhost:4610",
 			RootCa:      rootCa,
 			Certificate: clientCert,
@@ -195,7 +195,7 @@ func testTCP() (err error) {
 
 		// time.Sleep(time.Second * 3)
 
-		client := logger.NewClient(ctx, logger.ClientTCP{
+		client := logger.NewClient(ctx, &logger.ClientTCP{
 			Address: "localhost:4610",
 		})
 
@@ -247,7 +247,7 @@ func testUDP() (err error) {
 
 		// time.Sleep(time.Second * 3)
 
-		client := logger.NewClient(ctx, logger.ClientUDP{
+		client := logger.NewClient(ctx, &logger.ClientUDP{
 			Address: "127.0.0.1:4610",
 		})
 
@@ -299,7 +299,59 @@ func testUnixgram() (err error) {
 
 		// time.Sleep(time.Second * 3)
 
-		client := logger.NewClient(ctx, logger.ClientUnixgram{
+		client := logger.NewClient(ctx, &logger.ClientUnixgram{
+			Address: "test.socket",
+		})
+
+		logger := logger.New(ctx, client)
+
+		var i int
+
+		for {
+			if ctx.Err() != nil {
+				break
+			}
+
+			i++
+
+			logger.Debug("Hi there " + strconv.Itoa(i))
+
+			// client.Write([]byte("hellooo"))
+			// time.Sleep(time.Second)
+		}
+
+	}()
+
+	wg.Wait()
+	return
+}
+
+func testUnix() (err error) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer stop()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		server := testServer(ctx)
+
+		if err := server.Listen(logger.ServerUnix{
+			Address: "test.socket",
+		}); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// time.Sleep(time.Second * 3)
+
+		client := logger.NewClient(ctx, &logger.ClientUnix{
 			Address: "test.socket",
 		})
 
