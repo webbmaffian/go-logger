@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net"
@@ -12,19 +13,35 @@ import (
 
 type ClientTCP struct {
 	Address string
-	Clock   func() time.Time
+	TimeNow func() time.Time
+	dialer  net.Dialer
+	conn    *net.TCPConn
 }
 
-func (opt ClientTCP) dialer(c *client) func() (net.Conn, error) {
-	var dialer net.Dialer
+func (opt *ClientTCP) write(ctx context.Context, b []byte) (err error) {
+	if opt.conn == nil {
+		var conn net.Conn
 
-	return func() (net.Conn, error) {
-		return dialer.DialContext(c.ctx, "tcp", opt.Address)
+		if conn, err = opt.dialer.DialContext(ctx, "tcp", opt.Address); err == nil {
+			opt.conn = conn.(*net.TCPConn)
+		}
 	}
+
+	if opt.conn != nil {
+		opt.conn.SetWriteDeadline(opt.TimeNow().Add(time.Second * 5))
+		_, err = opt.conn.Write(b)
+	}
+
+	return
 }
 
-func (opt ClientTCP) clock() func() time.Time {
-	return opt.Clock
+func (opt *ClientTCP) close() (err error) {
+	if opt.conn != nil {
+		err = opt.conn.Close()
+		opt.conn = nil
+	}
+
+	return
 }
 
 type ClientTLS struct {
@@ -32,37 +49,57 @@ type ClientTLS struct {
 	PrivateKey  auth.PrivateKey
 	Certificate auth.Certificate
 	RootCa      auth.Certificate
-	Clock       func() time.Time
+	TimeNow     func() time.Time
+	dialer      tls.Dialer
+	conn        *tls.Conn
 }
 
-func (opt ClientTLS) dialer(c *client) func() (net.Conn, error) {
-	cert := opt.Certificate.TLS(opt.PrivateKey)
-	dialer := tls.Dialer{
-		Config: &tls.Config{
-			GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-				log.Println("client: the server is requesting a certificate")
-				return cert, nil
-			},
-			RootCAs:            opt.RootCa.X509Pool(),
-			MinVersion:         tls.VersionTLS13,
-			MaxVersion:         tls.VersionTLS13,
-			NextProtos:         []string{"wallaaa"},
-			ClientSessionCache: tls.NewLRUClientSessionCache(8),
-		},
-		NetDialer: &net.Dialer{
-			Timeout: time.Second * 5,
-			Control: func(network, address string, c syscall.RawConn) error {
-				log.Println("client: dialing", address, "over", network, "...")
-				return nil
-			},
-		},
+func (opt *ClientTLS) write(ctx context.Context, b []byte) (err error) {
+	if opt.conn == nil {
+		if opt.dialer.Config == nil {
+			cert := opt.Certificate.TLS(opt.PrivateKey)
+			opt.dialer = tls.Dialer{
+				Config: &tls.Config{
+					GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+						log.Println("client: the server is requesting a certificate")
+						return cert, nil
+					},
+					RootCAs:            opt.RootCa.X509Pool(),
+					MinVersion:         tls.VersionTLS13,
+					MaxVersion:         tls.VersionTLS13,
+					NextProtos:         []string{"wallaaa"},
+					ClientSessionCache: tls.NewLRUClientSessionCache(8),
+				},
+				NetDialer: &net.Dialer{
+					Timeout: time.Second * 5,
+					Control: func(network, address string, c syscall.RawConn) error {
+						log.Println("client: dialing", address, "over", network, "...")
+						return nil
+					},
+				},
+			}
+		}
+
+		var conn net.Conn
+
+		if conn, err = opt.dialer.DialContext(ctx, "tcp", opt.Address); err == nil {
+			opt.conn = conn.(*tls.Conn)
+		}
 	}
 
-	return func() (net.Conn, error) {
-		return dialer.DialContext(c.ctx, "tcp", opt.Address)
+	if opt.conn != nil {
+		opt.conn.SetWriteDeadline(opt.TimeNow().Add(time.Second * 5))
+		_, err = opt.conn.Write(b)
 	}
+
+	return
 }
 
-func (opt ClientTLS) clock() func() time.Time {
-	return opt.Clock
+func (opt *ClientTLS) close() (err error) {
+	if opt.conn != nil {
+		err = opt.conn.Close()
+		opt.conn = nil
+	}
+
+	return
 }
