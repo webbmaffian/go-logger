@@ -28,10 +28,14 @@ type ClientUnixgram struct {
 }
 
 func (opt ClientUnixgram) dialer(c *client) func() (net.Conn, error) {
-	var dialer net.Dialer
+	return func() (conn net.Conn, err error) {
+		addr, err := net.ResolveUnixAddr("unixgram", opt.Address)
 
-	return func() (net.Conn, error) {
-		return dialer.DialContext(c.ctx, "unixgram", opt.Address)
+		if err != nil {
+			return
+		}
+
+		return net.DialUnix("unixgram", nil, addr)
 	}
 }
 

@@ -26,10 +26,14 @@ type ServerUnixgram struct {
 
 func (opt ServerUnixgram) listen(s *server) (err error) {
 	// conn, err := s.listenConfig.ListenPacket(s.ctx, "unixgram", opt.Address)
-	conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
-		Name: opt.Address,
-		Net:  "unixgram",
-	})
+
+	addr, err := net.ResolveUnixAddr("unixgram", opt.Address)
+
+	if err != nil {
+		return
+	}
+
+	conn, err := net.ListenUnixgram("unixgram", addr)
 
 	if err != nil {
 		return
