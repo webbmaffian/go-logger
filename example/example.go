@@ -79,7 +79,7 @@ func main() {
 	// }
 
 	// return
-	if err := testTCP(); err != nil {
+	if err := testPipe(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -405,18 +405,16 @@ func testUnix() (err error) {
 }
 
 func testServer(ctx context.Context) logger.Server {
-	return logger.NewServer(ctx, logger.ServerOptions{
-		EntryReader: logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
-			var e logger.Entry
+	return logger.NewServer(ctx, logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+		var e logger.Entry
 
-			if err = e.Decode(b); err != nil {
-				return
-			}
-
-			log.Println("server: got message:", e)
+		if err = e.Decode(b); err != nil {
 			return
-		}),
-	})
+		}
+
+		log.Println("server: got message:", e)
+		return
+	}))
 }
 
 func testPipe() (err error) {
@@ -442,11 +440,9 @@ func testPipe() (err error) {
 	go func() {
 		defer wg.Done()
 
-		server := logger.NewServer(ctx, logger.ServerOptions{
-			EntryReader: logger.NewClient(ctx, &logger.ClientTCP{
-				Address: "127.0.0.1:4610",
-			}),
-		})
+		server := logger.NewServer(ctx, logger.NewClient(ctx, &logger.ClientTCP{
+			Address: "127.0.0.1:4610",
+		}))
 
 		if err := server.Listen(logger.ServerTCP{
 			Address: "127.0.0.1:4609",

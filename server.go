@@ -10,13 +10,13 @@ import (
 	"github.com/kpango/fastime"
 )
 
-func NewServer(ctx context.Context, opt ServerOptions) Server {
+func NewServer(ctx context.Context, entryReader io.Reader) Server {
 	fastTime := fastime.New().StartTimerD(ctx, time.Second)
 
 	return &server{
-		ctx:  ctx,
-		opt:  opt,
-		time: fastTime,
+		ctx:         ctx,
+		entryReader: entryReader,
+		time:        fastTime,
 	}
 }
 
@@ -34,7 +34,7 @@ type ServerOptions struct {
 
 type server struct {
 	ctx          context.Context
-	opt          ServerOptions
+	entryReader  io.Reader
 	time         fastime.Fastime
 	listenConfig net.ListenConfig
 }

@@ -25,12 +25,12 @@ func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
 			continue
 		}
 
-		if err = validateEntryBytes(buf[2 : size+2]); err != nil {
+		if err = validateEntryBytes(buf[:size+2]); err != nil {
 			log.Println("server: INVALID MESSAGE")
 			break
 		}
 
-		if _, err = s.opt.EntryReader.Read(buf[:size+2]); err != nil {
+		if _, err = s.entryReader.Read(buf[:size+2]); err != nil {
 			break
 		}
 	}
