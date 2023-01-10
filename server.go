@@ -3,6 +3,7 @@ package logger
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"time"
 
@@ -28,11 +29,12 @@ type Listener interface {
 }
 
 type EntryReader interface {
-	Read(bucketId uint64, b []byte) error
+	io.Reader
+	ReadEntry(bucketId uint64, b []byte) error
 }
 
 type ServerOptions struct {
-	EntryReader EntryReader
+	EntryReader io.Reader
 }
 
 type server struct {
@@ -62,6 +64,12 @@ type entryReaderCallback struct {
 	cb func(bucketId uint64, b []byte) error
 }
 
-func (e entryReaderCallback) Read(bucketId uint64, b []byte) error {
+func (e entryReaderCallback) ReadEntry(bucketId uint64, b []byte) error {
 	return e.cb(bucketId, b)
+}
+
+func (e entryReaderCallback) Read(b []byte) (n int, err error) {
+	err = e.cb(0, b)
+	n = len(b)
+	return
 }

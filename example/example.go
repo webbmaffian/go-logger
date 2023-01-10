@@ -53,7 +53,7 @@ import (
 // }
 
 func main() {
-	if err := testUnix(); err != nil {
+	if err := testPipe(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -391,4 +391,73 @@ func testServer(ctx context.Context) logger.Server {
 			return
 		}),
 	})
+}
+
+func testPipe() (err error) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer stop()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		server := testServer(ctx)
+
+		if err := server.Listen(logger.ServerTCP{
+			Address: "127.0.0.1:4610",
+		}); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		server := logger.NewServer(ctx, logger.ServerOptions{
+			EntryReader: logger.NewClient(ctx, &logger.ClientTCP{
+				Address: "127.0.0.1:4610",
+			}),
+		})
+
+		if err := server.Listen(logger.ServerTCP{
+			Address: "127.0.0.1:4609",
+		}); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// time.Sleep(time.Second * 3)
+
+		client := logger.NewClient(ctx, &logger.ClientTCP{
+			Address: "127.0.0.1:4609",
+		})
+
+		logger := logger.New(ctx, client)
+
+		var i int
+
+		for {
+			if ctx.Err() != nil {
+				break
+			}
+
+			i++
+
+			logger.Debug("Hi there " + strconv.Itoa(i))
+
+			// client.Write([]byte("hellooo"))
+			time.Sleep(time.Second)
+		}
+
+	}()
+
+	wg.Wait()
+	return
 }

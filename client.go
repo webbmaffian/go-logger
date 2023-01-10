@@ -19,7 +19,7 @@ type Connector interface {
 	write(ctx context.Context, conn net.Conn, b []byte) error
 }
 
-func NewClient(ctx context.Context, connector Connector) io.WriteCloser {
+func NewClient(ctx context.Context, connector Connector) io.ReadWriteCloser {
 	return &client{
 		connector: connector,
 		ctx:       ctx,
@@ -73,4 +73,8 @@ func (c *client) Close() (err error) {
 	}
 
 	return
+}
+
+func (c *client) Read(b []byte) (n int, err error) {
+	return c.Write(b)
 }

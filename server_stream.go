@@ -7,6 +7,7 @@ import (
 )
 
 func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
+	log.Println("incoming connection")
 	defer conn.Close()
 
 	var buf [entrySize]byte
@@ -29,8 +30,14 @@ func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
 			break
 		}
 
-		if err = s.opt.EntryReader.Read(bucketId, buf[2:size+2]); err != nil {
-			break
+		if entryReader, ok := s.opt.EntryReader.(EntryReader); ok {
+			if err = entryReader.ReadEntry(bucketId, buf[2:size+2]); err != nil {
+				break
+			}
+		} else {
+			if _, err = s.opt.EntryReader.Read(buf[:size+2]); err != nil {
+				break
+			}
 		}
 	}
 

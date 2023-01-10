@@ -37,8 +37,8 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 			continue
 		}
 
-		if err = s.opt.EntryReader.Read(0, buf[2:n]); err != nil {
-			return
-		}
+		// if err = s.opt.EntryReader.ReadEntry(0, buf[2:n]); err != nil {
+		// 	return
+		// }
 	}
 }
