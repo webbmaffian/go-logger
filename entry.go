@@ -231,40 +231,40 @@ func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
 	for e.Level = 0; e.Level <= 7; e.Level++ {
 		switch e.Level {
 
-		case 0: // Bucket ID
+		case _0_BucketId: // Bucket ID
 			e.BucketId = binary.BigEndian.Uint32(b[s:])
 			s += 4
 
-		case 1: // Entry ID (XID)
+		case _1_EntryId: // Entry ID (XID)
 			if e.Id, err = xid.FromBytes(b[s : s+12]); err != nil {
 				return
 			}
 
 			s += 12
 
-		case 2: // Severity
+		case _2_Severity: // Severity
 			e.Severity = Severity(b[12])
 			s++
 
-		case 3: // Message
+		case _3_Message: // Message
 			size := int(b[s])
 			s++
 			e.Message = bytesToString(b[s : s+size])
 			s += size
 
-		case 4: // Category
+		case _4_Category: // Category
 			size := int(b[s])
 			s++
 			e.Category = bytesToString(b[s : s+size])
 			s += size
 
-		case 5: // Proc ID
+		case _5_ProcId: // Proc ID
 			size := int(b[s])
 			s++
 			e.ProcId = bytesToString(b[s : s+size])
 			s += size
 
-		case 6: // Tags
+		case _6_Tags: // Tags
 			e.TagsCount = b[s]
 			s++
 			var i uint8
@@ -275,7 +275,7 @@ func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
 				s += size
 			}
 
-		case 7: // Meta
+		case _7_Meta: // Meta
 			e.MetaCount = b[s]
 			s++
 			var i uint8
