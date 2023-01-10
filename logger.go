@@ -103,44 +103,44 @@ func (l *Logger) Debug(message string, args ...any) xid.ID {
 func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 	e := l.queue.acquireEntry()
 
-	e.id = xid.NewWithTime(l.opt.TimeNow())
-	e.level = 3
-	e.severity = severity
-	e.message = truncate(message, math.MaxUint8)
-	e.tagsCount = 0
-	e.metaCount = 0
+	e.Id = xid.NewWithTime(l.opt.TimeNow())
+	e.Level = 3
+	e.Severity = severity
+	e.Message = truncate(message, math.MaxUint8)
+	e.TagsCount = 0
+	e.MetaCount = 0
 
 	for i := range args {
 		switch v := args[i].(type) {
 
 		case Category:
-			e.category = truncate(string(v), math.MaxUint8)
-			e.level = max(e.level, 3)
+			e.Category = truncate(string(v), math.MaxUint8)
+			e.Level = max(e.Level, 3)
 
 		case ProcId:
-			e.procId = truncate(string(v), math.MaxUint8)
-			e.level = max(e.level, 4)
+			e.ProcId = truncate(string(v), math.MaxUint8)
+			e.Level = max(e.Level, 4)
 
 		case string:
-			if e.tagsCount < 32 {
-				e.tags[e.tagsCount] = truncate(v, math.MaxUint8)
-				e.tagsCount++
-				e.level = max(e.level, 5)
+			if e.TagsCount < 32 {
+				e.Tags[e.TagsCount] = truncate(v, math.MaxUint8)
+				e.TagsCount++
+				e.Level = max(e.Level, 5)
 			}
 
 		case int:
-			if e.tagsCount < 32 {
-				e.tags[e.tagsCount] = strconv.Itoa(v)
-				e.tagsCount++
-				e.level = max(e.level, 5)
+			if e.TagsCount < 32 {
+				e.Tags[e.TagsCount] = strconv.Itoa(v)
+				e.TagsCount++
+				e.Level = max(e.Level, 5)
 			}
 
 		case meta:
-			if e.metaCount < 32 {
-				e.metaKeys[e.metaCount] = truncate(v.key, math.MaxUint8)
-				e.metaValues[e.metaCount] = truncate(v.value, math.MaxUint16)
-				e.metaCount++
-				e.level = max(e.level, 6)
+			if e.MetaCount < 32 {
+				e.MetaKeys[e.MetaCount] = truncate(v.key, math.MaxUint8)
+				e.MetaValues[e.MetaCount] = truncate(v.value, math.MaxUint16)
+				e.MetaCount++
+				e.Level = max(e.Level, 6)
 			}
 
 		}
@@ -148,7 +148,7 @@ func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 
 	l.queue.putEntry(e)
 
-	return e.id
+	return e.Id
 }
 
 func (l *Logger) Close() {

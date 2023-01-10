@@ -28,11 +28,6 @@ type Listener interface {
 	listen(s *server) (err error)
 }
 
-type EntryReader interface {
-	io.Reader
-	ReadEntry(bucketId uint64, b []byte) error
-}
-
 type ServerOptions struct {
 	EntryReader io.Reader
 }
@@ -54,7 +49,7 @@ var (
 	ErrInvalidSubjectKeyId = errors.New("invalid subject key ID")
 )
 
-func EntryReaderCallback(cb func(bucketId uint64, b []byte) error) EntryReader {
+func EntryReaderCallback(cb func(bucketId uint64, b []byte) error) io.Reader {
 	return entryReaderCallback{
 		cb: cb,
 	}
@@ -62,10 +57,6 @@ func EntryReaderCallback(cb func(bucketId uint64, b []byte) error) EntryReader {
 
 type entryReaderCallback struct {
 	cb func(bucketId uint64, b []byte) error
-}
-
-func (e entryReaderCallback) ReadEntry(bucketId uint64, b []byte) error {
-	return e.cb(bucketId, b)
 }
 
 func (e entryReaderCallback) Read(b []byte) (n int, err error) {

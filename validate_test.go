@@ -10,16 +10,16 @@ func TestValidateEntryBytes(t *testing.T) {
 	var buf [1024]byte
 
 	e := Entry{
-		id:         xid.New(),
-		category:   "foobar",
-		procId:     "barfoo",
-		message:    "lorem ipsum dolor sit amet",
-		tags:       [32]string{"foo", "bar", "baz"},
-		tagsCount:  3,
-		metaKeys:   [32]string{"foo", "bar", "baz"},
-		metaValues: [32]string{"foo", "bar", "baz"},
-		metaCount:  3,
-		level:      5,
+		Id:         xid.New(),
+		Category:   "foobar",
+		ProcId:     "barfoo",
+		Message:    "lorem ipsum dolor sit amet",
+		Tags:       [32]string{"foo", "bar", "baz"},
+		TagsCount:  3,
+		MetaKeys:   [32]string{"foo", "bar", "baz"},
+		MetaValues: [32]string{"foo", "bar", "baz"},
+		MetaCount:  3,
+		Level:      5,
 	}
 
 	size := e.Encode(buf[:])
@@ -33,16 +33,16 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 	var buf [1024]byte
 
 	e := Entry{
-		id:         xid.New(),
-		category:   "foobar",
-		procId:     "barfoo",
-		message:    "lorem ipsum dolor sit amet",
-		tags:       [32]string{"foo", "bar", "baz"},
-		tagsCount:  3,
-		metaKeys:   [32]string{"foo", "bar", "baz"},
-		metaValues: [32]string{"foo", "bar", "baz"},
-		metaCount:  3,
-		level:      5,
+		Id:         xid.New(),
+		Category:   "foobar",
+		ProcId:     "barfoo",
+		Message:    "lorem ipsum dolor sit amet",
+		Tags:       [32]string{"foo", "bar", "baz"},
+		TagsCount:  3,
+		MetaKeys:   [32]string{"foo", "bar", "baz"},
+		MetaValues: [32]string{"foo", "bar", "baz"},
+		MetaCount:  3,
+		Level:      5,
 	}
 
 	size := e.Encode(buf[:])

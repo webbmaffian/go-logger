@@ -15,7 +15,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 
 	for {
 		if err = s.ctx.Err(); err != nil {
-			return
+			break
 		}
 
 		// log.Println("server: waiting for message")
@@ -37,8 +37,10 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 			continue
 		}
 
-		// if err = s.opt.EntryReader.ReadEntry(0, buf[2:n]); err != nil {
-		// 	return
-		// }
+		if _, err = s.opt.EntryReader.Read(buf[:n]); err != nil {
+			break
+		}
 	}
+
+	return
 }
