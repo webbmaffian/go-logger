@@ -27,7 +27,7 @@ func validateEntryBytes(b []byte) (err error) {
 	}
 
 	// 0. Entry ID
-	s := 12
+	s := 16
 
 	// 1. Severity
 	if b[s] > byte(DEBUG) {

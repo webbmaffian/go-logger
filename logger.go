@@ -43,8 +43,6 @@ func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) L
 					s := e.Encode(buf[2:])
 					binary.BigEndian.PutUint16(buf[:], uint16(s))
 
-					log.Println("client:", *e)
-
 					if _, err := output.Write(buf[:s+2]); err != nil {
 						log.Println(err)
 					}
@@ -106,14 +104,14 @@ func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 	e := l.queue.acquireEntry()
 
 	e.id = xid.NewWithTime(l.opt.TimeNow())
-	e.level = 2
+	e.level = 3
 	e.severity = severity
 	e.message = truncate(message, math.MaxUint8)
 	e.tagsCount = 0
 	e.metaCount = 0
 
-	for _, arg := range args {
-		switch v := arg.(type) {
+	for i := range args {
+		switch v := args[i].(type) {
 
 		case Category:
 			e.category = truncate(string(v), math.MaxUint8)

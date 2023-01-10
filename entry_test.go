@@ -19,7 +19,7 @@ func BenchmarkEntryEncode(b *testing.B) {
 		metaKeys:   [32]string{"foo", "bar", "baz"},
 		metaValues: [32]string{"foo", "bar", "baz"},
 		metaCount:  3,
-		level:      5,
+		level:      6,
 	}
 
 	b.ResetTimer()
@@ -42,7 +42,7 @@ func BenchmarkEntryDecode(b *testing.B) {
 		metaKeys:   [32]string{"foo", "bar", "baz"},
 		metaValues: [32]string{"foo", "bar", "baz"},
 		metaCount:  3,
-		level:      5,
+		level:      6,
 	}
 
 	size := e.Encode(buf[:])

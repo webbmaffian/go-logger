@@ -9,24 +9,26 @@ import (
 )
 
 /*
-	0. EntryId
+	0. BucketId
+		4 byte (uint32) integer
+	1. EntryId
 		12 byte XID
-	1. Severity
+	2. Severity
 		1 byte (uint8)
-	2. Message
+	3. Message
 		1 byte (uint8) length (X)
 		X bytes string
-	3. Category
+	4. Category
 		1 byte (uint8) length (X)
 		X bytes string
-	4. ProcId
+	5. ProcId
 		1 byte (uint8) length (X)
 		X bytes string
-	5. Tags
+	6. Tags
 		1 byte (uint8) count
 			1 byte (uint8) length (X)
 			X bytes string
-	6. Meta
+	7. Meta
 		1 byte (uint8) count
 			1 byte (uint8) length (X)
 			X bytes string key
@@ -43,17 +45,18 @@ import (
 const entrySize = 65_507 // Maxiumum size of a UDP packet
 
 type Entry struct {
-	id         xid.ID
-	severity   Severity
+	tags       [32]string
+	metaKeys   [32]string
+	metaValues [32]string
 	category   string
 	procId     string
 	message    string
-	tags       [32]string
+	id         xid.ID
+	bucketId   uint32
+	severity   Severity
+	level      uint8
 	tagsCount  uint8
-	metaKeys   [32]string
-	metaValues [32]string
 	metaCount  uint8
-	level      int
 }
 
 func (e Entry) String() string {
@@ -65,43 +68,50 @@ func (e *Entry) Read(b []byte) (n int, err error) {
 }
 
 func (e *Entry) Encode(b []byte) (s int) {
-	var i uint8
+	var i, l uint8
 
-	// 0. Entry ID (XID)
-	s += copy(b[:12], e.id[:])
+	// 0. Bucket ID
+	binary.BigEndian.PutUint32(b[s:], e.bucketId)
+	s += 4
+	l++
 
-	// 1. Severity
+	// 1. Entry ID (XID)
+	s += copy(b[s:], e.id[:])
+	l++
+
+	// 2. Severity
 	b[s] = uint8(e.severity)
 	s++
+	l++
 
-	for l := 2; l <= e.level; l++ {
+	for ; l <= e.level; l++ {
 		switch l {
 
-		case 2: // Message
+		case 3: // Message
 			b[s] = uint8(len(e.message))
 			s++
-			s += copy(b[s:], stringToBytes(e.message))
+			s += copy(b[s:], e.message)
 
-		case 3: // Category
+		case 4: // Category
 			b[s] = uint8(len(e.category))
 			s++
-			s += copy(b[s:], stringToBytes(e.category))
+			s += copy(b[s:], e.category)
 
-		case 4: // Proc ID
+		case 5: // Proc ID
 			b[s] = uint8(len(e.procId))
 			s++
-			s += copy(b[s:], stringToBytes(e.procId))
+			s += copy(b[s:], e.procId)
 
-		case 5: // Tags
+		case 6: // Tags
 			b[s] = e.tagsCount
 			s++
 			for i = 0; i < e.tagsCount; i++ {
 				b[s] = uint8(len(e.tags[i]))
 				s++
-				s += copy(b[s:], stringToBytes(e.tags[i]))
+				s += copy(b[s:], e.tags[i])
 			}
 
-		case 6: // Meta
+		case 7: // Meta
 			pos := s
 			b[s] = e.metaCount
 			s++
@@ -116,12 +126,12 @@ func (e *Entry) Encode(b []byte) (s int) {
 
 				b[s] = uint8(keyLen)
 				s++
-				s += copy(b[s:], stringToBytes(e.metaKeys[i]))
+				s += copy(b[s:], e.metaKeys[i])
 				size := uint16(valLen)
 				b[s] = byte(size >> 8)
 				b[s+1] = byte(size)
 				s += 2
-				s += copy(b[s:], stringToBytes(e.metaValues[i]))
+				s += copy(b[s:], e.metaValues[i])
 			}
 		}
 	}
@@ -130,49 +140,52 @@ func (e *Entry) Encode(b []byte) (s int) {
 }
 
 func (e *Entry) Decode(b []byte) (err error) {
-	var s int = 13
+	var s int = 17
 	total := len(b)
 
 	if total < s {
 		return errors.New("message too short")
 	}
 
-	// 0. Entry ID (XID)
+	// 0. Bucket ID
+	e.bucketId = binary.BigEndian.Uint32(b[:])
+
+	// 1. Entry ID (XID)
 	e.id, err = xid.FromBytes(b[:12])
 
 	if err != nil {
 		return
 	}
 
-	// 1. Severity
+	// 2. Severity
 	e.severity = Severity(b[12])
-	l := 2
+	l := 3
 
 	for s < total {
 		switch l {
 
-		case 2: // Message
+		case 3: // Message
 			size := int(b[s])
 			s++
 			e.message = string(b[s : s+size])
 			s += size
 			l++
 
-		case 3: // Category
+		case 4: // Category
 			size := int(b[s])
 			s++
 			e.category = string(b[s : s+size])
 			s += size
 			l++
 
-		case 4: // Proc ID
+		case 5: // Proc ID
 			size := int(b[s])
 			s++
 			e.procId = string(b[s : s+size])
 			s += size
 			l++
 
-		case 5: // Tags
+		case 6: // Tags
 			e.tagsCount = b[s]
 			s++
 			var i uint8
@@ -184,7 +197,7 @@ func (e *Entry) Decode(b []byte) (err error) {
 			}
 			l++
 
-		case 6: // Meta
+		case 7: // Meta
 			e.metaCount = b[s]
 			s++
 			var i uint8

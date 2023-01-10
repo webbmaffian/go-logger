@@ -6,7 +6,9 @@ import (
 )
 
 func BenchmarkLog(b *testing.B) {
-	logger := New(context.Background(), &dummyWriter{})
+	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
+		TimeNow: FastTimeNow(context.Background()),
+	})
 
 	b.ResetTimer()
 
@@ -24,10 +26,8 @@ func BenchmarkLogTcp(b *testing.B) {
 
 	// go server.Listen(ctx)
 
-	client := NewClient(ctx, ClientOptions{
-		Connector: &ClientTCP{
-			Address: "localhost:4610",
-		},
+	client := NewClient(ctx, &ClientTCP{
+		Address: "localhost:4610",
 	})
 
 	logger := New(ctx, client)
@@ -49,10 +49,8 @@ func BenchmarkLogTcpParallell(b *testing.B) {
 
 	// go server.Listen(ctx)
 
-	client := NewClient(ctx, ClientOptions{
-		Connector: &ClientTCP{
-			Address: "localhost:4610",
-		},
+	client := NewClient(ctx, &ClientTCP{
+		Address: "localhost:4610",
 	})
 
 	logger := New(ctx, client)
