@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
+func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 	log.Println("incoming connection")
 	defer conn.Close()
 

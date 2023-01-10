@@ -49,18 +49,18 @@ var (
 	ErrInvalidSubjectKeyId = errors.New("invalid subject key ID")
 )
 
-func EntryReaderCallback(cb func(bucketId uint64, b []byte) error) io.Reader {
+func EntryReaderCallback(cb func(b []byte) error) io.Reader {
 	return entryReaderCallback{
 		cb: cb,
 	}
 }
 
 type entryReaderCallback struct {
-	cb func(bucketId uint64, b []byte) error
+	cb func(b []byte) error
 }
 
 func (e entryReaderCallback) Read(b []byte) (n int, err error) {
-	err = e.cb(0, b)
+	err = e.cb(b)
 	n = len(b)
 	return
 }

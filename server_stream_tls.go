@@ -117,5 +117,5 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 
 	cert := state.PeerCertificates[0]
 
-	return s.handleRequest(binary.BigEndian.Uint64(cert.SubjectKeyId), conn)
+	return s.handleRequest(binary.BigEndian.Uint32(cert.SubjectKeyId), conn)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"log"
 	"net"
 	"os"
@@ -53,6 +54,15 @@ import (
 // }
 
 func main() {
+
+	/*
+		TODO:
+		- Add bucket IDs (uint32) to Subject Key ID in TLS certificate.
+		- Check that the provided bucket ID in each log entry matches a bucket ID in certificate.
+	*/
+	log.Printf("%x\n", binary.LittleEndian.Uint32(binary.BigEndian.AppendUint32(nil, 12341234)))
+	return
+
 	// var buf [1024]byte
 
 	// e := logger.Entry{
@@ -405,7 +415,7 @@ func testUnix() (err error) {
 }
 
 func testServer(ctx context.Context) logger.Server {
-	return logger.NewServer(ctx, logger.EntryReaderCallback(func(bucketId uint64, b []byte) (err error) {
+	return logger.NewServer(ctx, logger.EntryReaderCallback(func(b []byte) (err error) {
 		var e logger.Entry
 
 		if err = e.Decode(b); err != nil {
