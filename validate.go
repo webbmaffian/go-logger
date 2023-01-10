@@ -28,7 +28,7 @@ func validateEntryBytes(b []byte) (err error) {
 	total := binary.BigEndian.Uint16(b[s:])
 	s += 2
 
-	if uint16(totalLen) != total+2 {
+	if uint16(totalLen) != total {
 		return ErrCorruptEntry
 	}
 

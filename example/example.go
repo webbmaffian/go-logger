@@ -79,7 +79,7 @@ func main() {
 	// }
 
 	// return
-	if err := testPipe(); err != nil {
+	if err := testUDP(); err != nil {
 		log.Fatal(err)
 	}
 }

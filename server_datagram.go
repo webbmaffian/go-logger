@@ -33,7 +33,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 
 		msgLen := int(binary.BigEndian.Uint16(buf[:2]))
 
-		if msgLen != n-2 {
+		if msgLen != n {
 			continue
 		}
 

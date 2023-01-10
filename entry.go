@@ -142,7 +142,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 		}
 	}
 
-	binary.BigEndian.PutUint16(b, uint16(s-2))
+	binary.BigEndian.PutUint16(b, uint16(s))
 
 	return
 }
@@ -156,7 +156,7 @@ func (e *Entry) Decode(b []byte) (err error) {
 	total := binary.BigEndian.Uint16(b[s:])
 	s += 2
 
-	if uint16(len(b)) != total+2 {
+	if uint16(len(b)) != total {
 		return ErrCorruptEntry
 	}
 
@@ -241,7 +241,7 @@ func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
 	total := binary.BigEndian.Uint16(b[s:])
 	s += 2
 
-	if uint16(len(b)) != total+2 {
+	if uint16(len(b)) != total {
 		return ErrCorruptEntry
 	}
 

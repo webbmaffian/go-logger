@@ -21,16 +21,16 @@ func (s *server) handleRequest(bucketId uint64, conn net.Conn) (err error) {
 
 		// log.Printf("server: waiting for message of %d bytes\n", size)
 
-		if _, err = readFull(s.ctx, conn, buf[2:size+2]); err != nil {
+		if _, err = readFull(s.ctx, conn, buf[2:size]); err != nil {
 			continue
 		}
 
-		if err = validateEntryBytes(buf[:size+2]); err != nil {
+		if err = validateEntryBytes(buf[:size]); err != nil {
 			log.Println("server: INVALID MESSAGE")
 			break
 		}
 
-		if _, err = s.entryReader.Read(buf[:size+2]); err != nil {
+		if _, err = s.entryReader.Read(buf[:size]); err != nil {
 			break
 		}
 	}
