@@ -3,10 +3,11 @@ package logger
 import (
 	"context"
 	"io"
+	"reflect"
 	"unsafe"
 )
 
-func max[T uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64 | int | uint | float32 | float64](a, b T) T {
+func max[T uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64 | int | uint | float32 | float64 | level](a, b T) T {
 	if a > b {
 		return a
 	}
@@ -48,6 +49,11 @@ func bytesToString(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
 }
 
-func stringToBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(&s))
+func stringToBytes(s string) (b []byte) {
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	bh.Data = sh.Data
+	bh.Cap = sh.Len
+	bh.Len = sh.Len
+	return b
 }

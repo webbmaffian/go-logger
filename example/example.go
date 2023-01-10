@@ -53,7 +53,33 @@ import (
 // }
 
 func main() {
-	if err := testPipe(); err != nil {
+	// var buf [1024]byte
+
+	// e := logger.Entry{
+	// 	id:         xid.New(),
+	// 	category:   "foobar",
+	// 	procId:     "barfoo",
+	// 	message:    "lorem ipsum dolor sit amet",
+	// 	tags:       [32]string{"foo", "bar", "baz"},
+	// 	tagsCount:  3,
+	// 	metaKeys:   [32]string{"foo", "bar", "baz"},
+	// 	metaValues: [32]string{"foo", "bar", "baz"},
+	// 	metaCount:  3,
+	// 	level:      6,
+	// }
+
+	// var e2 logger.Entry
+
+	// size := e.Encode(buf[:])
+
+	// for i := 0; i < b.N; i++ {
+	// 	e2.Decode(buf[:size])
+	// 	log.Printf("%+v\n", e2)
+	// 	b.FailNow()
+	// }
+
+	// return
+	if err := testTCP(); err != nil {
 		log.Fatal(err)
 	}
 }

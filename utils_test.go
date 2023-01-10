@@ -17,3 +17,9 @@ func BenchmarkTruncateLong(b *testing.B) {
 		_ = truncate(longString, 255)
 	}
 }
+
+func BenchmarkStringToBytes(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = stringToBytes("foobar")
+	}
+}

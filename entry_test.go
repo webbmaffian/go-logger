@@ -19,7 +19,7 @@ func BenchmarkEntryEncode(b *testing.B) {
 		metaKeys:   [32]string{"foo", "bar", "baz"},
 		metaValues: [32]string{"foo", "bar", "baz"},
 		metaCount:  3,
-		level:      6,
+		level:      _7_Meta,
 	}
 
 	b.ResetTimer()
@@ -42,14 +42,22 @@ func BenchmarkEntryDecode(b *testing.B) {
 		metaKeys:   [32]string{"foo", "bar", "baz"},
 		metaValues: [32]string{"foo", "bar", "baz"},
 		metaCount:  3,
-		level:      6,
+		level:      _7_Meta,
 	}
 
 	size := e.Encode(buf[:])
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		e.Decode(buf[:size])
-	}
+	b.Run("copy", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			e.Decode(buf[:size])
+		}
+	})
+
+	b.Run("no_copy", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			e.DecodeWithoutCopy(buf[:size])
+		}
+	})
 }
