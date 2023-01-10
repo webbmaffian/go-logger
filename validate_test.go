@@ -19,12 +19,13 @@ func TestValidateEntryBytes(t *testing.T) {
 		MetaKeys:   [32]string{"foo", "bar", "baz"},
 		MetaValues: [32]string{"foo", "bar", "baz"},
 		MetaCount:  3,
-		Level:      5,
+		Level:      _7_Meta,
 	}
 
 	size := e.Encode(buf[:])
 
 	if err := validateEntryBytes(buf[:size]); err != nil {
+		t.Log(buf[:size])
 		t.Error(err)
 	}
 }
@@ -42,7 +43,7 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 		MetaKeys:   [32]string{"foo", "bar", "baz"},
 		MetaValues: [32]string{"foo", "bar", "baz"},
 		MetaCount:  3,
-		Level:      5,
+		Level:      _7_Meta,
 	}
 
 	size := e.Encode(buf[:])

@@ -15,44 +15,50 @@ var (
 )
 
 func validateEntryBytes(b []byte) (err error) {
-	totalLen := len(b)
-
-	// Must be at least 12 bytes XID + 1 byte severity
-	if totalLen < 13 {
+	if len(b) < 2 {
 		return ErrTooShort
 	}
 
-	if totalLen > entrySize {
+	if len(b) > entrySize {
 		return ErrTooLong
 	}
 
-	// 0. Entry ID
-	s := 16
+	var s uint16
+	totalLen := uint16(len(b))
+	total := binary.BigEndian.Uint16(b[s:])
+	s += 2
 
-	// 1. Severity
-	if b[s] > byte(DEBUG) {
-		return ErrInvalidSeverity
+	if uint16(totalLen) != total+2 {
+		return ErrCorruptEntry
 	}
-	s++
 
-	l := 1
+	var l level
 
-loop:
 	for s < totalLen {
-		l++
-
 		switch l {
 
-		case 2: // Message
-			s += int(b[s]) + 1
+		case _0_BucketId:
+			s += 4
 
-		case 3: // Category
-			s += int(b[s]) + 1
+		case _1_EntryId:
+			s += 12
 
-		case 4: // Proc ID
-			s += int(b[s]) + 1
+		case _2_Severity:
+			if b[s] > byte(DEBUG) {
+				return ErrInvalidSeverity
+			}
+			s++
 
-		case 5: // Tags
+		case _3_Message:
+			s += uint16(b[s]) + 1
+
+		case _4_Category:
+			s += uint16(b[s]) + 1
+
+		case _5_ProcId:
+			s += uint16(b[s]) + 1
+
+		case _6_Tags:
 			tagsCount := int(b[s])
 			if tagsCount > 32 {
 				return ErrTooManyTags
@@ -60,10 +66,10 @@ loop:
 			s++
 
 			for i := 0; i < tagsCount; i++ {
-				s += int(b[s]) + 1
+				s += uint16(b[s]) + 1
 			}
 
-		case 6: // Meta
+		case _7_Meta:
 			metaCount := int(b[s])
 			if metaCount > 32 {
 				return ErrTooManyMeta
@@ -75,13 +81,15 @@ loop:
 					return ErrCorruptEntry
 				}
 
-				s += int(b[s]) + 1
-				s += int(binary.BigEndian.Uint16(b[s:s+1])) + 2
+				s += uint16(b[s]) + 1
+				s += binary.BigEndian.Uint16(b[s:s+2]) + 2
 			}
 
 		default:
-			break loop
+			return ErrCorruptEntry
 		}
+
+		l++
 	}
 
 	if s != totalLen {

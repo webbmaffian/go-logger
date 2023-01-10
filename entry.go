@@ -74,13 +74,10 @@ func (e Entry) String() string {
 	return e.Message
 }
 
-// func (e *Entry) Read(b []byte) (n int, err error) {
-// 	return e.Encode(b), io.EOF
-// }
-
 func (e *Entry) Encode(b []byte) (s int) {
 	var i uint8
 	var l level
+	s += 2
 
 	for l = 0; l <= e.Level; l++ {
 		switch l {
@@ -145,14 +142,25 @@ func (e *Entry) Encode(b []byte) (s int) {
 		}
 	}
 
+	binary.BigEndian.PutUint16(b, uint16(s-2))
+
 	return
 }
 
 func (e *Entry) Decode(b []byte) (err error) {
-	var s int
-	total := len(b)
+	if len(b) < 2 {
+		return ErrTooShort
+	}
 
-	for e.Level = 0; e.Level <= 7; e.Level++ {
+	var s uint16
+	total := binary.BigEndian.Uint16(b[s:])
+	s += 2
+
+	if uint16(len(b)) != total+2 {
+		return ErrCorruptEntry
+	}
+
+	for e.Level = 0; e.Level <= _7_Meta; e.Level++ {
 		switch e.Level {
 
 		case _0_BucketId: // Bucket ID
@@ -171,19 +179,19 @@ func (e *Entry) Decode(b []byte) (err error) {
 			s++
 
 		case _3_Message: // Message
-			size := int(b[s])
+			size := uint16(b[s])
 			s++
 			e.Message = string(b[s : s+size])
 			s += size
 
 		case _4_Category: // Category
-			size := int(b[s])
+			size := uint16(b[s])
 			s++
 			e.Category = string(b[s : s+size])
 			s += size
 
 		case _5_ProcId: // Proc ID
-			size := int(b[s])
+			size := uint16(b[s])
 			s++
 			e.ProcId = string(b[s : s+size])
 			s += size
@@ -193,7 +201,7 @@ func (e *Entry) Decode(b []byte) (err error) {
 			s++
 			var i uint8
 			for i = 0; i < e.TagsCount; i++ {
-				size := int(b[s])
+				size := uint16(b[s])
 				s++
 				e.Tags[i] = string(b[s : s+size])
 				s += size
@@ -204,12 +212,12 @@ func (e *Entry) Decode(b []byte) (err error) {
 			s++
 			var i uint8
 			for i = 0; i < e.MetaCount; i++ {
-				size := int(b[s])
+				size := uint16(b[s])
 				s++
 				e.MetaKeys[i] = string(b[s : s+size])
 				s += size
 
-				size = int(binary.BigEndian.Uint16(b[s : s+2]))
+				size = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
 				e.MetaValues[i] = string(b[s : s+size])
 				s += size
@@ -225,67 +233,76 @@ func (e *Entry) Decode(b []byte) (err error) {
 }
 
 func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
-	var s int
-	total := len(b)
+	if len(b) < 2 {
+		return ErrTooShort
+	}
 
-	for e.Level = 0; e.Level <= 7; e.Level++ {
+	var s uint16
+	total := binary.BigEndian.Uint16(b[s:])
+	s += 2
+
+	if uint16(len(b)) != total+2 {
+		return ErrCorruptEntry
+	}
+
+	for e.Level = 0; e.Level <= _7_Meta; e.Level++ {
 		switch e.Level {
 
-		case _0_BucketId: // Bucket ID
+		case _0_BucketId:
 			e.BucketId = binary.BigEndian.Uint32(b[s:])
 			s += 4
 
-		case _1_EntryId: // Entry ID (XID)
+		case _1_EntryId:
 			if e.Id, err = xid.FromBytes(b[s : s+12]); err != nil {
 				return
 			}
 
 			s += 12
 
-		case _2_Severity: // Severity
+		case _2_Severity:
 			e.Severity = Severity(b[12])
 			s++
 
-		case _3_Message: // Message
-			size := int(b[s])
+		case _3_Message:
+			size := uint16(b[s])
 			s++
 			e.Message = bytesToString(b[s : s+size])
 			s += size
 
-		case _4_Category: // Category
-			size := int(b[s])
+		case _4_Category:
+			size := uint16(b[s])
 			s++
 			e.Category = bytesToString(b[s : s+size])
 			s += size
 
-		case _5_ProcId: // Proc ID
-			size := int(b[s])
+		case _5_ProcId:
+			size := uint16(b[s])
 			s++
 			e.ProcId = bytesToString(b[s : s+size])
 			s += size
 
-		case _6_Tags: // Tags
+		case _6_Tags:
 			e.TagsCount = b[s]
 			s++
 			var i uint8
 			for i = 0; i < e.TagsCount; i++ {
-				size := int(b[s])
+				size := uint16(b[s])
 				s++
 				e.Tags[i] = bytesToString(b[s : s+size])
 				s += size
 			}
 
-		case _7_Meta: // Meta
+		case _7_Meta:
 			e.MetaCount = b[s]
 			s++
 			var i uint8
 			for i = 0; i < e.MetaCount; i++ {
-				size := int(b[s])
+				size := uint16(b[s])
 				s++
 				e.MetaKeys[i] = bytesToString(b[s : s+size])
 				s += size
 
-				size = int(binary.BigEndian.Uint16(b[s : s+2]))
+				size = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
 				e.MetaValues[i] = bytesToString(b[s : s+size])
 				s += size
