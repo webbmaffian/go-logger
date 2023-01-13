@@ -32,11 +32,6 @@ import (
 			X bytes string key
 			2 bytes (uint16) length (Y)
 			Y bytes string value
-	X. Metrics
-		1 byte (uint8) count
-			1 byte (uint8) length (X)
-			X bytes string key
-			8 bytes (uint64) integer value
 
 */
 
