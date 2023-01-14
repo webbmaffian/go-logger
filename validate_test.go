@@ -12,14 +12,13 @@ func TestValidateEntryBytes(t *testing.T) {
 	e := Entry{
 		Id:         xid.New(),
 		Category:   "foobar",
-		ProcId:     "barfoo",
 		Message:    "lorem ipsum dolor sit amet",
-		Tags:       [32]string{"foo", "bar", "baz"},
+		Tags:       [8]string{"foo", "bar", "baz"},
 		TagsCount:  3,
 		MetaKeys:   [32]string{"foo", "bar", "baz"},
 		MetaValues: [32]string{"foo", "bar", "baz"},
 		MetaCount:  3,
-		Level:      _7_Meta,
+		Level:      _7_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])
@@ -36,14 +35,13 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 	e := Entry{
 		Id:         xid.New(),
 		Category:   "foobar",
-		ProcId:     "barfoo",
 		Message:    "lorem ipsum dolor sit amet",
-		Tags:       [32]string{"foo", "bar", "baz"},
+		Tags:       [8]string{"foo", "bar", "baz"},
 		TagsCount:  3,
 		MetaKeys:   [32]string{"foo", "bar", "baz"},
 		MetaValues: [32]string{"foo", "bar", "baz"},
 		MetaCount:  3,
-		Level:      _7_Meta,
+		Level:      _7_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])

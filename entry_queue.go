@@ -19,7 +19,13 @@ type entryQueue struct {
 }
 
 func (q *entryQueue) acquireEntry() *Entry {
-	return q.pool.Get().(*Entry)
+	e := q.pool.Get().(*Entry)
+	e.Level = 3
+	e.TagsCount = 0
+	e.MetaCount = 0
+	e.StackTraceCount = 0
+
+	return e
 }
 
 func (q *entryQueue) releaseEntry(e *Entry) {

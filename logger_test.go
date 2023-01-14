@@ -13,7 +13,7 @@ func BenchmarkLog(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		logger.Debug("Created order %s", "12345", Meta("foo", "bar"), Meta("foo", "bar"), Meta("foo", "bar"), Meta("foo", "bar"), Meta("foo", "bar"))
+		logger.Err("Created order %s", "12345", Meta("foo", "bar"), Meta("foo", "bar"), Meta("foo", "bar"), Meta("foo", "bar"), Meta("foo", "bar"))
 	}
 
 	logger.Close()

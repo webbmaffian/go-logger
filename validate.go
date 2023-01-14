@@ -6,12 +6,13 @@ import (
 )
 
 var (
-	ErrTooShort        = errors.New("entry too short")
-	ErrTooLong         = errors.New("entry too long")
-	ErrInvalidSeverity = errors.New("invalid severity")
-	ErrTooManyTags     = errors.New("too many tags")
-	ErrTooManyMeta     = errors.New("too many meta key/value pairs")
-	ErrCorruptEntry    = errors.New("corrupt entry")
+	ErrTooShort          = errors.New("entry too short")
+	ErrTooLong           = errors.New("entry too long")
+	ErrInvalidSeverity   = errors.New("invalid severity")
+	ErrTooManyTags       = errors.New("too many tags")
+	ErrTooManyMeta       = errors.New("too many meta key/value pairs")
+	ErrTooManyStackTrace = errors.New("too many stack traces")
+	ErrCorruptEntry      = errors.New("corrupt entry")
 )
 
 func validateEntryBytes(b []byte) (err error) {
@@ -55,10 +56,7 @@ func validateEntryBytes(b []byte) (err error) {
 		case _4_Category:
 			s += uint16(b[s]) + 1
 
-		case _5_ProcId:
-			s += uint16(b[s]) + 1
-
-		case _6_Tags:
+		case _5_Tags:
 			tagsCount := int(b[s])
 			if tagsCount > 32 {
 				return ErrTooManyTags
@@ -69,7 +67,7 @@ func validateEntryBytes(b []byte) (err error) {
 				s += uint16(b[s]) + 1
 			}
 
-		case _7_Meta:
+		case _6_Meta:
 			metaCount := int(b[s])
 			if metaCount > 32 {
 				return ErrTooManyMeta
@@ -83,6 +81,22 @@ func validateEntryBytes(b []byte) (err error) {
 
 				s += uint16(b[s]) + 1
 				s += binary.BigEndian.Uint16(b[s:s+2]) + 2
+			}
+
+		case _7_Stack_trace:
+			traceCount := int(b[s])
+			if traceCount > 32 {
+				return ErrTooManyStackTrace
+			}
+			s++
+
+			for i := 0; i < traceCount; i++ {
+				if s >= totalLen {
+					return ErrCorruptEntry
+				}
+
+				s += uint16(b[s]) + 1
+				s += 2
 			}
 
 		default:

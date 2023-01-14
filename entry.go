@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/binary"
+	"runtime"
 
 	"github.com/rs/xid"
 )
@@ -12,26 +13,30 @@ import (
 	1. EntryId
 		12 byte XID
 	2. Severity
-		1 byte (uint8)
+		1 byte
 	3. Message
 		1 byte (uint8) length (X)
 		X bytes string
 	4. Category
 		1 byte (uint8) length (X)
 		X bytes string
-	5. ProcId
-		1 byte (uint8) length (X)
-		X bytes string
-	6. Tags
+	5. Tags
 		1 byte (uint8) count
 			1 byte (uint8) length (X)
 			X bytes string
-	7. Meta
-		1 byte (uint8) count
+	6. Meta
+		1 byte (uint8) count (0-32)
 			1 byte (uint8) length (X)
 			X bytes string key
 			2 bytes (uint16) length (Y)
 			Y bytes string value
+		[...31]
+	7. Stack trace
+		1 byte (uint8) count (0-8)
+			1 byte (uint8) path length (X)
+			X bytes string path
+			2 bytes (uint16) line number
+		[...7]
 
 */
 
@@ -43,29 +48,35 @@ const (
 	_2_Severity
 	_3_Message
 	_4_Category
-	_5_ProcId
-	_6_Tags
-	_7_Meta
+	_5_Tags
+	_6_Meta
+	_7_Stack_trace
 )
 
 const entrySize = 65_507 // Maxiumum size of a UDP packet
 
 type Entry struct {
-	Tags       [32]string
-	MetaKeys   [32]string
-	MetaValues [32]string
-	Category   string
-	ProcId     string
-	Message    string
-	Id         xid.ID
-	BucketId   uint32
-	Severity   Severity
-	Level      level
-	TagsCount  uint8
-	MetaCount  uint8
+	MetaKeys             [32]string
+	MetaValues           [32]string
+	StackTracePaths      [16]string
+	StackTraceRowNumbers [16]uint16
+	Tags                 [8]string
+	Category             string
+	Message              string
+	Id                   xid.ID
+	BucketId             uint32
+	Severity             Severity
+	Level                level
+	TagsCount            uint8
+	MetaCount            uint8
+	StackTraceCount      uint8
 }
 
 func (e Entry) String() string {
+	return e.Message
+}
+
+func (e Entry) Error() string {
 	return e.Message
 }
 
@@ -98,12 +109,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 			s++
 			s += copy(b[s:], e.Category)
 
-		case _5_ProcId:
-			b[s] = uint8(len(e.ProcId))
-			s++
-			s += copy(b[s:], e.ProcId)
-
-		case _6_Tags:
+		case _5_Tags:
 			b[s] = e.TagsCount
 			s++
 			for i = 0; i < e.TagsCount; i++ {
@@ -112,7 +118,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 				s += copy(b[s:], e.Tags[i])
 			}
 
-		case _7_Meta:
+		case _6_Meta:
 			pos := s
 			b[s] = e.MetaCount
 			s++
@@ -134,6 +140,26 @@ func (e *Entry) Encode(b []byte) (s int) {
 				s += 2
 				s += copy(b[s:], e.MetaValues[i])
 			}
+
+		case _7_Stack_trace:
+			pos := s
+			b[s] = e.StackTraceCount
+			s++
+			for i = 0; i < e.StackTraceCount; i++ {
+				pathLen := len(e.StackTracePaths[i])
+
+				if s+pathLen+3 > entrySize {
+					b[pos] = i
+					break
+				}
+
+				b[s] = uint8(pathLen)
+				s++
+				s += copy(b[s:], e.StackTracePaths[i])
+				b[s] = byte(e.StackTraceRowNumbers[i] >> 8)
+				b[s+1] = byte(e.StackTraceRowNumbers[i])
+				s += 2
+			}
 		}
 	}
 
@@ -142,7 +168,13 @@ func (e *Entry) Encode(b []byte) (s int) {
 	return
 }
 
-func (e *Entry) Decode(b []byte) (err error) {
+func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
+	var unsafe bool
+
+	if noCopy != nil && noCopy[0] {
+		unsafe = true
+	}
+
 	if len(b) < 2 {
 		return ErrTooShort
 	}
@@ -155,92 +187,7 @@ func (e *Entry) Decode(b []byte) (err error) {
 		return ErrCorruptEntry
 	}
 
-	for e.Level = 0; e.Level <= _7_Meta; e.Level++ {
-		switch e.Level {
-
-		case _0_BucketId: // Bucket ID
-			e.BucketId = binary.BigEndian.Uint32(b[s:])
-			s += 4
-
-		case _1_EntryId: // Entry ID (XID)
-			if e.Id, err = xid.FromBytes(b[s : s+12]); err != nil {
-				return
-			}
-
-			s += 12
-
-		case _2_Severity: // Severity
-			e.Severity = Severity(b[12])
-			s++
-
-		case _3_Message: // Message
-			size := uint16(b[s])
-			s++
-			e.Message = string(b[s : s+size])
-			s += size
-
-		case _4_Category: // Category
-			size := uint16(b[s])
-			s++
-			e.Category = string(b[s : s+size])
-			s += size
-
-		case _5_ProcId: // Proc ID
-			size := uint16(b[s])
-			s++
-			e.ProcId = string(b[s : s+size])
-			s += size
-
-		case _6_Tags: // Tags
-			e.TagsCount = b[s]
-			s++
-			var i uint8
-			for i = 0; i < e.TagsCount; i++ {
-				size := uint16(b[s])
-				s++
-				e.Tags[i] = string(b[s : s+size])
-				s += size
-			}
-
-		case _7_Meta: // Meta
-			e.MetaCount = b[s]
-			s++
-			var i uint8
-			for i = 0; i < e.MetaCount; i++ {
-				size := uint16(b[s])
-				s++
-				e.MetaKeys[i] = string(b[s : s+size])
-				s += size
-
-				size = binary.BigEndian.Uint16(b[s : s+2])
-				s += 2
-				e.MetaValues[i] = string(b[s : s+size])
-				s += size
-			}
-		}
-
-		if s >= total {
-			break
-		}
-	}
-
-	return
-}
-
-func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
-	if len(b) < 2 {
-		return ErrTooShort
-	}
-
-	var s uint16
-	total := binary.BigEndian.Uint16(b[s:])
-	s += 2
-
-	if uint16(len(b)) != total {
-		return ErrCorruptEntry
-	}
-
-	for e.Level = 0; e.Level <= _7_Meta; e.Level++ {
+	for e.Level = 0; e.Level <= _7_Stack_trace; e.Level++ {
 		switch e.Level {
 
 		case _0_BucketId:
@@ -261,46 +208,54 @@ func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
 		case _3_Message:
 			size := uint16(b[s])
 			s++
-			e.Message = bytesToString(b[s : s+size])
+			e.Message = toString(b[s:s+size], unsafe)
 			s += size
 
 		case _4_Category:
 			size := uint16(b[s])
 			s++
-			e.Category = bytesToString(b[s : s+size])
+			e.Category = toString(b[s:s+size], unsafe)
 			s += size
 
-		case _5_ProcId:
-			size := uint16(b[s])
-			s++
-			e.ProcId = bytesToString(b[s : s+size])
-			s += size
-
-		case _6_Tags:
+		case _5_Tags:
 			e.TagsCount = b[s]
 			s++
 			var i uint8
 			for i = 0; i < e.TagsCount; i++ {
 				size := uint16(b[s])
 				s++
-				e.Tags[i] = bytesToString(b[s : s+size])
+				e.Tags[i] = toString(b[s:s+size], unsafe)
 				s += size
 			}
 
-		case _7_Meta:
+		case _6_Meta:
 			e.MetaCount = b[s]
 			s++
 			var i uint8
 			for i = 0; i < e.MetaCount; i++ {
 				size := uint16(b[s])
 				s++
-				e.MetaKeys[i] = bytesToString(b[s : s+size])
+				e.MetaKeys[i] = toString(b[s:s+size], unsafe)
 				s += size
 
 				size = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
-				e.MetaValues[i] = bytesToString(b[s : s+size])
+				e.MetaValues[i] = toString(b[s:s+size], unsafe)
 				s += size
+			}
+
+		case _7_Stack_trace:
+			e.StackTraceCount = b[s]
+			s++
+			var i uint8
+			for i = 0; i < e.StackTraceCount; i++ {
+				size := uint16(b[s])
+				s++
+				e.StackTracePaths[i] = toString(b[s:s+size], unsafe)
+				s += size
+
+				e.StackTraceRowNumbers[i] = binary.BigEndian.Uint16(b[s : s+2])
+				s += 2
 			}
 		}
 
@@ -311,6 +266,122 @@ func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
 
 	return
 }
+
+func (e *Entry) addStackTrace(skip int) {
+	var trace [16]uintptr
+	n := runtime.Callers(skip, trace[:])
+
+	if n == 0 {
+		return
+	}
+
+	frames := runtime.CallersFrames(trace[:n])
+	e.StackTraceCount = uint8(n)
+	e.Level = _7_Stack_trace
+
+	for i := 0; i < n; i++ {
+		frame, ok := frames.Next()
+		e.StackTracePaths[i] = frame.File
+		e.StackTraceRowNumbers[i] = uint16(frame.Line)
+
+		if !ok {
+			break
+		}
+	}
+}
+
+func toString(b []byte, unsafe bool) string {
+	if unsafe {
+		return bytesToString(b)
+	}
+
+	return string(b)
+}
+
+// func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
+// 	if len(b) < 2 {
+// 		return ErrTooShort
+// 	}
+
+// 	var s uint16
+// 	total := binary.BigEndian.Uint16(b[s:])
+// 	s += 2
+
+// 	if uint16(len(b)) != total {
+// 		return ErrCorruptEntry
+// 	}
+
+// 	for e.Level = 0; e.Level <= _7_Meta; e.Level++ {
+// 		switch e.Level {
+
+// 		case _0_BucketId:
+// 			e.BucketId = binary.BigEndian.Uint32(b[s:])
+// 			s += 4
+
+// 		case _1_EntryId:
+// 			if e.Id, err = xid.FromBytes(b[s : s+12]); err != nil {
+// 				return
+// 			}
+
+// 			s += 12
+
+// 		case _2_Severity:
+// 			e.Severity = Severity(b[12])
+// 			s++
+
+// 		case _3_Message:
+// 			size := uint16(b[s])
+// 			s++
+// 			e.Message = bytesToString(b[s : s+size])
+// 			s += size
+
+// 		case _4_Category:
+// 			size := uint16(b[s])
+// 			s++
+// 			e.Category = bytesToString(b[s : s+size])
+// 			s += size
+
+// 		case _5_ProcId:
+// 			size := uint16(b[s])
+// 			s++
+// 			e.ProcId = bytesToString(b[s : s+size])
+// 			s += size
+
+// 		case _6_Tags:
+// 			e.TagsCount = b[s]
+// 			s++
+// 			var i uint8
+// 			for i = 0; i < e.TagsCount; i++ {
+// 				size := uint16(b[s])
+// 				s++
+// 				e.Tags[i] = bytesToString(b[s : s+size])
+// 				s += size
+// 			}
+
+// 		case _7_Meta:
+// 			e.MetaCount = b[s]
+// 			s++
+// 			var i uint8
+// 			for i = 0; i < e.MetaCount; i++ {
+// 				size := uint16(b[s])
+// 				s++
+// 				e.MetaKeys[i] = bytesToString(b[s : s+size])
+// 				s += size
+
+// 				size = binary.BigEndian.Uint16(b[s : s+2])
+// 				s += 2
+// 				e.MetaValues[i] = bytesToString(b[s : s+size])
+// 				s += size
+// 			}
+// 		}
+
+// 		if s >= total {
+// 			break
+// 		}
+// 	}
+
+// 	return
+// }
 
 // Implements encoding.BinaryMarshaler
 func (e Entry) MarshalBinary() ([]byte, error) {

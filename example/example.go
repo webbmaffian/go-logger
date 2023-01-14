@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/x509/pkix"
-	"encoding/binary"
 	"log"
 	"net"
 	"os"
@@ -54,14 +53,33 @@ import (
 // }
 
 func main() {
+	// var trace [16]uintptr
+	// n := runtime.Callers(0, trace[:])
+
+	// log.Println(n, trace[:n])
+
+	// frames := runtime.CallersFrames(trace[:n])
+
+	// for {
+	// 	frame, ok := frames.Next()
+
+	// 	log.Printf("%+v\n", frame)
+	// 	if !ok {
+	// 		break
+	// 	}
+	// }
+
+	// // log.Println(runtime.Caller(0))
+
+	// return
 
 	/*
 		TODO:
 		- Add bucket IDs (uint32) to Subject Key ID in TLS certificate.
 		- Check that the provided bucket ID in each log entry matches a bucket ID in certificate.
 	*/
-	log.Printf("%x\n", binary.LittleEndian.Uint32(binary.BigEndian.AppendUint32(nil, 12341234)))
-	return
+	// log.Printf("%x\n", binary.LittleEndian.Uint32(binary.BigEndian.AppendUint32(nil, 12341234)))
+	// return
 
 	// var buf [1024]byte
 
@@ -298,7 +316,7 @@ func testUDP() (err error) {
 
 			i++
 
-			logger.Debug("Hi there " + strconv.Itoa(i))
+			logger.Err("Hi there " + strconv.Itoa(i))
 
 			// client.Write([]byte("hellooo"))
 			// time.Sleep(time.Second)
@@ -422,7 +440,9 @@ func testServer(ctx context.Context) logger.Server {
 			return
 		}
 
-		log.Println("server: got message:", e)
+		log.Printf("server: got message: %+v\n", e)
+		log.Printf("server: %+v\n", e.StackTracePaths[:e.StackTraceCount])
+		log.Printf("server:  %+v\n", e.StackTraceRowNumbers[:e.StackTraceCount])
 		return
 	}))
 }
