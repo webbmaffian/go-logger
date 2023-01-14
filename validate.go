@@ -20,7 +20,7 @@ func validateEntryBytes(b []byte) (err error) {
 		return ErrTooShort
 	}
 
-	if len(b) > entrySize {
+	if len(b) > MaxEntrySize {
 		return ErrTooLong
 	}
 

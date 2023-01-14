@@ -5,14 +5,14 @@ import (
 	"io"
 	"log"
 	"math"
-	"strconv"
 	"time"
 
 	"github.com/rs/xid"
 )
 
 type LoggerOptions struct {
-	TimeNow func() time.Time
+	TimeNow            func() time.Time
+	StackTraceSeverity Severity
 }
 
 func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) Logger {
@@ -29,7 +29,7 @@ func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) L
 	queue := newEntryQueue(100)
 
 	go func() {
-		var buf [entrySize]byte
+		var buf [MaxEntrySize]byte
 
 	loop:
 		for {
@@ -106,41 +106,45 @@ func (l *Logger) Debug(message string, args ...any) xid.ID {
 	return l.log(DEBUG, message, args...)
 }
 
-func (l *Logger) Entry(message string, args ...any) *Entry {
+func (l *Logger) LogError(err error) (entryId xid.ID) {
+	err = l.NewError(err)
 
+	if e, ok := err.(*Entry); ok {
+		l.queue.putEntry(e)
+		entryId = e.Id
+	}
+
+	return
 }
 
-func (l *Logger) Send(err error, severity ...Severity) xid.ID {
-
-}
-
-func (l *Logger) Wrap(err error, severity ...Severity) error {
+func (l *Logger) NewError(err any, args ...any) error {
 	if err == nil {
 		return nil
 	}
 
-	var sev Severity = ERR
 	var e *Entry
-	var ok bool
 
-	if severity != nil {
-		sev = severity[0]
+	switch v := err.(type) {
+
+	case *Entry:
+		e = v
+
+	case Severitier:
+		e = l.queue.acquireEntry(l.opt.TimeNow())
+		e.Severity = v.Severity()
+		parseErrorString(e, v.Error())
+
+	case error:
+		e = l.queue.acquireEntry(l.opt.TimeNow())
+		e.Severity = ERR
+		parseErrorString(e, v.Error())
+
+	case string:
+		e = l.queue.acquireEntry(l.opt.TimeNow())
+		e.Severity = ERR
 	}
 
-	// Already an entry
-	if e, ok = err.(*Entry); ok {
-		return e
-	}
-
-	if s, ok := err.(Severitier); ok {
-		sev = s.Severity()
-	}
-
-	e = l.queue.acquireEntry()
-	e.Id = xid.NewWithTime(l.opt.TimeNow())
-	e.Severity = sev
-
-	parseErrorString(e, err.Error())
+	e.parseArgs(args)
 
 	return e
 }
@@ -148,7 +152,7 @@ func (l *Logger) Wrap(err error, severity ...Severity) error {
 func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 	e := l.newEntry(severity, message, args...)
 
-	if severity <= NOTICE {
+	if severity <= l.opt.StackTraceSeverity {
 		e.addStackTrace(4)
 	}
 
@@ -158,43 +162,9 @@ func (l *Logger) log(severity Severity, message string, args ...any) xid.ID {
 }
 
 func (l *Logger) newEntry(severity Severity, message string, args ...any) *Entry {
-	e := l.queue.acquireEntry()
-
-	e.Id = xid.NewWithTime(l.opt.TimeNow())
+	e := l.queue.acquireEntry(l.opt.TimeNow())
 	e.Severity = severity
 	e.Message = truncate(message, math.MaxUint8)
-
-	for i := range args {
-		switch v := args[i].(type) {
-
-		case Category:
-			e.Category = truncate(string(v), math.MaxUint8)
-			e.Level = max(e.Level, 3)
-
-		case string:
-			if e.TagsCount < 32 {
-				e.Tags[e.TagsCount] = truncate(v, math.MaxUint8)
-				e.TagsCount++
-				e.Level = max(e.Level, 5)
-			}
-
-		case int:
-			if e.TagsCount < 32 {
-				e.Tags[e.TagsCount] = strconv.Itoa(v)
-				e.TagsCount++
-				e.Level = max(e.Level, 5)
-			}
-
-		case meta:
-			if e.MetaCount < 32 {
-				e.MetaKeys[e.MetaCount] = truncate(v.key, math.MaxUint8)
-				e.MetaValues[e.MetaCount] = truncate(v.value, math.MaxUint16)
-				e.MetaCount++
-				e.Level = max(e.Level, 6)
-			}
-
-		}
-	}
 
 	return e
 }

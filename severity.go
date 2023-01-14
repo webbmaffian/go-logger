@@ -12,3 +12,8 @@ const (
 	INFO
 	DEBUG
 )
+
+type Severitier interface {
+	error
+	Severity() Severity
+}

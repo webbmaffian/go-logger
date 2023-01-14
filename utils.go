@@ -14,7 +14,7 @@ var regexErrorString = regexp.MustCompile("('[^']+')|([0-9]+\\.?[0-9]*)")
 func parseErrorString(e *Entry, str string) {
 	e.TagsCount = 0
 
-	regexErrorString.ReplaceAllStringFunc(str, func(s string) string {
+	e.Message = truncate(regexErrorString.ReplaceAllStringFunc(str, func(s string) string {
 		if len(s) > 32 || e.TagsCount >= 8 {
 			return s
 		}
@@ -23,7 +23,7 @@ func parseErrorString(e *Entry, str string) {
 		e.TagsCount++
 
 		return "%s"
-	})
+	}), MaxMessageSize)
 }
 
 func max[T uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64 | int | uint | float32 | float64 | level](a, b T) T {

@@ -1,6 +1,11 @@
 package logger
 
-import "sync"
+import (
+	"sync"
+	"time"
+
+	"github.com/rs/xid"
+)
 
 func newEntryQueue(bufferSize int) *entryQueue {
 	return &entryQueue{
@@ -18,8 +23,9 @@ type entryQueue struct {
 	pool sync.Pool
 }
 
-func (q *entryQueue) acquireEntry() *Entry {
+func (q *entryQueue) acquireEntry(t time.Time) *Entry {
 	e := q.pool.Get().(*Entry)
+	e.Id = xid.NewWithTime(t)
 	e.Level = 3
 	e.TagsCount = 0
 	e.MetaCount = 0

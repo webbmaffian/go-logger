@@ -2,7 +2,9 @@ package logger
 
 import (
 	"encoding/binary"
+	"math"
 	"runtime"
+	"strconv"
 
 	"github.com/rs/xid"
 )
@@ -43,6 +45,18 @@ import (
 type level uint8
 
 const (
+	MaxEntrySize          = 65_507 // Should fit a UDP packet
+	MaxMessageSize        = math.MaxUint8
+	MaxCategorySize       = math.MaxUint8
+	MaxMetaKeySize        = math.MaxUint8
+	MaxMetaValueSize      = math.MaxUint16
+	MaxStackTracePathSize = math.MaxUint8
+	MaxMetaCount          = 32
+	MaxStackTraceCount    = 16
+	MaxTagsCount          = 8
+)
+
+const (
 	_0_BucketId level = iota
 	_1_EntryId
 	_2_Severity
@@ -53,14 +67,12 @@ const (
 	_7_Stack_trace
 )
 
-const entrySize = 65_507 // Maxiumum size of a UDP packet
-
 type Entry struct {
-	MetaKeys             [32]string
-	MetaValues           [32]string
-	StackTracePaths      [16]string
-	StackTraceRowNumbers [16]uint16
-	Tags                 [8]string
+	MetaKeys             [MaxMetaCount]string
+	MetaValues           [MaxMetaCount]string
+	StackTracePaths      [MaxStackTraceCount]string
+	StackTraceRowNumbers [MaxStackTraceCount]uint16
+	Tags                 [MaxTagsCount]string
 	Category             string
 	Message              string
 	Id                   xid.ID
@@ -126,7 +138,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 				keyLen := len(e.MetaKeys[i])
 				valLen := len(e.MetaKeys[i])
 
-				if s+keyLen+valLen+3 > entrySize {
+				if s+keyLen+valLen+3 > MaxEntrySize {
 					b[pos] = i
 					break
 				}
@@ -148,7 +160,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 			for i = 0; i < e.StackTraceCount; i++ {
 				pathLen := len(e.StackTracePaths[i])
 
-				if s+pathLen+3 > entrySize {
+				if s+pathLen+3 > MaxEntrySize {
 					b[pos] = i
 					break
 				}
@@ -265,6 +277,43 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 	}
 
 	return
+}
+
+func (e *Entry) parseArgs(args []any) {
+	for i := range args {
+		switch v := args[i].(type) {
+
+		case Severity:
+			e.Severity = v
+
+		case Category:
+			e.Category = truncate(string(v), math.MaxUint8)
+			e.Level = max(e.Level, 3)
+
+		case string:
+			if e.TagsCount < 32 {
+				e.Tags[e.TagsCount] = truncate(v, math.MaxUint8)
+				e.TagsCount++
+				e.Level = max(e.Level, 5)
+			}
+
+		case int:
+			if e.TagsCount < 32 {
+				e.Tags[e.TagsCount] = strconv.Itoa(v)
+				e.TagsCount++
+				e.Level = max(e.Level, 5)
+			}
+
+		case meta:
+			if e.MetaCount < 32 {
+				e.MetaKeys[e.MetaCount] = truncate(v.key, math.MaxUint8)
+				e.MetaValues[e.MetaCount] = truncate(v.value, math.MaxUint16)
+				e.MetaCount++
+				e.Level = max(e.Level, 6)
+			}
+
+		}
+	}
 }
 
 func (e *Entry) addStackTrace(skip int) {
@@ -385,7 +434,7 @@ func toString(b []byte, unsafe bool) string {
 
 // Implements encoding.BinaryMarshaler
 func (e Entry) MarshalBinary() ([]byte, error) {
-	var b [entrySize]byte
+	var b [MaxEntrySize]byte
 	s := e.Encode(b[:])
 	return b[:s], nil
 }

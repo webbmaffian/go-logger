@@ -10,7 +10,7 @@ func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 	log.Println("incoming connection")
 	defer conn.Close()
 
-	var buf [entrySize]byte
+	var buf [MaxEntrySize]byte
 
 	for {
 		if _, err = readFull(s.ctx, conn, buf[:2]); err != nil {

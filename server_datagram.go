@@ -10,7 +10,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 	defer conn.Close()
 	// log.Println("server: incoming connection")
 
-	var buf [entrySize]byte
+	var buf [MaxEntrySize]byte
 	var n int
 
 	for {
