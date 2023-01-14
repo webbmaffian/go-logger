@@ -7,7 +7,8 @@ import (
 
 func BenchmarkLog(b *testing.B) {
 	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
-		TimeNow: FastTimeNow(context.Background()),
+		TimeNow:            FastTimeNow(context.Background()),
+		StackTraceSeverity: NOTICE,
 	})
 
 	b.ResetTimer()

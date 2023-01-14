@@ -13,6 +13,7 @@ import (
 type LoggerOptions struct {
 	TimeNow            func() time.Time
 	StackTraceSeverity Severity
+	EntryQueueSize     int
 }
 
 func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) Logger {
@@ -26,7 +27,11 @@ func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) L
 		opt.TimeNow = time.Now
 	}
 
-	queue := newEntryQueue(100)
+	if opt.EntryQueueSize <= 0 {
+		opt.EntryQueueSize = 100
+	}
+
+	queue := newEntryQueue(opt.EntryQueueSize)
 
 	go func() {
 		var buf [MaxEntrySize]byte
@@ -146,6 +151,10 @@ func (l *Logger) NewError(err any, args ...any) error {
 
 	e.parseArgs(args)
 
+	if e.Severity <= l.opt.StackTraceSeverity && e.StackTraceCount == 0 {
+		e.addStackTrace(3)
+	}
+
 	return e
 }
 
@@ -172,14 +181,3 @@ func (l *Logger) newEntry(severity Severity, message string, args ...any) *Entry
 func (l *Logger) Close() {
 	l.queue.close()
 }
-
-func Meta(key string, value string) meta {
-	return meta{key, value}
-}
-
-type meta struct {
-	key   string
-	value string
-}
-
-type Category string

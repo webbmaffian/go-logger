@@ -279,16 +279,16 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 	return
 }
 
+type entryWriter interface {
+	writeEntry(e *Entry)
+}
+
 func (e *Entry) parseArgs(args []any) {
 	for i := range args {
 		switch v := args[i].(type) {
 
-		case Severity:
-			e.Severity = v
-
-		case Category:
-			e.Category = truncate(string(v), math.MaxUint8)
-			e.Level = max(e.Level, 3)
+		case entryWriter:
+			v.writeEntry(e)
 
 		case string:
 			if e.TagsCount < 32 {
@@ -302,14 +302,6 @@ func (e *Entry) parseArgs(args []any) {
 				e.Tags[e.TagsCount] = strconv.Itoa(v)
 				e.TagsCount++
 				e.Level = max(e.Level, 5)
-			}
-
-		case meta:
-			if e.MetaCount < 32 {
-				e.MetaKeys[e.MetaCount] = truncate(v.key, math.MaxUint8)
-				e.MetaValues[e.MetaCount] = truncate(v.value, math.MaxUint16)
-				e.MetaCount++
-				e.Level = max(e.Level, 6)
 			}
 
 		}
