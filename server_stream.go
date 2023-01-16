@@ -20,13 +20,15 @@ func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 		size := binary.BigEndian.Uint16(buf[:2])
 
 		// log.Printf("server: waiting for message of %d bytes\n", size)
+		log.Println("Reading", size, "bytes...")
 
 		if _, err = readFull(s.ctx, conn, buf[2:size]); err != nil {
 			continue
 		}
 
 		if err = validateEntryBytes(buf[:size]); err != nil {
-			log.Println("server: INVALID MESSAGE")
+			log.Println("server: INVALID MESSAGE:", err)
+			log.Println(buf[:size])
 			break
 		}
 

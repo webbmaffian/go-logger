@@ -38,7 +38,7 @@ import (
 			1 byte (uint8) path length (X)
 			X bytes string path
 			2 bytes (uint16) line number
-		[...7]
+		[...15]
 
 */
 

@@ -107,7 +107,7 @@ func main() {
 	// }
 
 	// return
-	if err := testUDP(); err != nil {
+	if err := testServerOnly(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -436,6 +436,9 @@ func testServer(ctx context.Context) logger.Server {
 	return logger.NewServer(ctx, logger.EntryReaderCallback(func(b []byte) (err error) {
 		var e logger.Entry
 
+		log.Println(b)
+		return
+
 		if err = e.Decode(b); err != nil {
 			return
 		}
@@ -512,4 +515,18 @@ func testPipe() (err error) {
 
 	wg.Wait()
 	return
+}
+
+func testServerOnly() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer stop()
+
+	server := testServer(ctx)
+	if err := server.Listen(logger.ServerTCP{
+		Address: "127.0.0.1:4610",
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
 }

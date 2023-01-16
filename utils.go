@@ -3,13 +3,14 @@ package logger
 import (
 	"context"
 	"io"
+	"log"
 	"reflect"
 	"regexp"
 	"strings"
 	"unsafe"
 )
 
-var regexErrorString = regexp.MustCompile("('[^']+')|([0-9]+\\.?[0-9]*)")
+var regexErrorString = regexp.MustCompile(`('[^']+')|([0-9]+\.?[0-9]*)`)
 
 func parseErrorString(e *Entry, str string) {
 	e.TagsCount = 0
@@ -51,6 +52,7 @@ func readFull(ctx context.Context, r io.Reader, buf []byte) (n int, err error) {
 		var nn int
 		nn, err = r.Read(buf[n:])
 		n += nn
+		log.Println("Read", n, "bytes")
 	}
 	if n >= min {
 		err = nil
