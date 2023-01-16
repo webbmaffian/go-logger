@@ -2,8 +2,10 @@ package logger
 
 import (
 	"encoding/binary"
+	"io"
 	"log"
 	"net"
+	"time"
 )
 
 func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
@@ -13,7 +15,8 @@ func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 	var buf [MaxEntrySize]byte
 
 	for {
-		if _, err = readFull(s.ctx, conn, buf[:2]); err != nil {
+		conn.SetReadDeadline(s.time.Now().Add(time.Second))
+		if _, err = io.ReadFull(conn, buf[:2]); err != nil {
 			break
 		}
 
@@ -22,7 +25,8 @@ func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 		// log.Printf("server: waiting for message of %d bytes\n", size)
 		log.Println("Reading", size, "bytes...")
 
-		if _, err = readFull(s.ctx, conn, buf[2:size]); err != nil {
+		conn.SetReadDeadline(s.time.Now().Add(time.Second * 5))
+		if _, err = io.ReadFull(conn, buf[2:size]); err != nil {
 			continue
 		}
 
