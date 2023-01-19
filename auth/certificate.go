@@ -260,7 +260,7 @@ func (c Certificate) ToFile(path string) (err error) {
 	return c.EncodePEM(f)
 }
 
-func (c Certificate) FromFile(path string) (err error) {
+func (c *Certificate) FromFile(path string) (err error) {
 	b, err := os.ReadFile(path)
 
 	if err != nil {

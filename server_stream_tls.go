@@ -33,13 +33,15 @@ func (opt ServerTLS) listen(s *server) (err error) {
 	}
 
 	listener := tls.NewListener(netListener, &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		MaxVersion:   tls.VersionTLS13,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion: tls.VersionTLS13,
+		MaxVersion: tls.VersionTLS13,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		// ClientAuth:   tls.NoClientCert,
 		ClientCAs:    opt.RootCa.X509Pool(),
 		Certificates: opt.Certificate.TLSChain(opt.PrivateKey),
-		NextProtos:   []string{"wallaaa"},
+		// NextProtos:   []string{"wallaaa"},
 		VerifyConnection: func(cs tls.ConnectionState) error {
+			log.Println("server: verifying connection")
 			if cs.PeerCertificates == nil || cs.PeerCertificates[0] == nil {
 				return ErrInvalidCertificate
 			}
@@ -99,6 +101,7 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 	log.Println("server: incoming connection")
 
 	if err = conn.HandshakeContext(s.ctx); err != nil {
+		log.Println("server: failed handshake:", err)
 		return
 	} else {
 		log.Println("server: handshake successful")

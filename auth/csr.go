@@ -111,7 +111,7 @@ func (c Csr) ToFile(path string) (err error) {
 	return c.EncodePEM(f)
 }
 
-func (c Csr) FromFile(path string) (err error) {
+func (c *Csr) FromFile(path string) (err error) {
 	b, err := os.ReadFile(path)
 
 	if err != nil {

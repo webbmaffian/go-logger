@@ -107,7 +107,7 @@ func main() {
 	// }
 
 	// return
-	if err := testServerOnly(); err != nil {
+	if err := testTlsServerOnly(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -436,16 +436,16 @@ func testServer(ctx context.Context) logger.Server {
 	return logger.NewServer(ctx, logger.EntryReaderCallback(func(b []byte) (err error) {
 		var e logger.Entry
 
-		log.Println(b)
-		return
+		// log.Println(b)
+		// return
 
 		if err = e.Decode(b); err != nil {
 			return
 		}
 
-		log.Printf("server: got message: %+v\n", e)
-		log.Printf("server: %+v\n", e.StackTracePaths[:e.StackTraceCount])
-		log.Printf("server:  %+v\n", e.StackTraceRowNumbers[:e.StackTraceCount])
+		log.Printf("server: got message: %+v\n", e.StackTracePaths, e.StackTraceRowNumbers)
+		// log.Printf("server: %+v\n", e.StackTracePaths[:e.StackTraceCount])
+		// log.Printf("server:  %+v\n", e.StackTraceRowNumbers[:e.StackTraceCount])
 		return
 	}))
 }
@@ -526,6 +526,94 @@ func testServerOnly() error {
 		Address: "127.0.0.1:4610",
 	}); err != nil {
 		log.Fatal(err)
+	}
+
+	return nil
+}
+
+func testTlsServerOnly() (err error) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer stop()
+
+	var (
+		// csr        auth.Csr
+		rootCa     auth.Certificate
+		serverKey  auth.PrivateKey
+		serverCert auth.Certificate
+		// clientKey  auth.PrivateKey
+		// clientCert auth.Certificate
+	)
+
+	// if serverKey, err = auth.CreatePrivateKey(); err != nil {
+	// 	return
+	// }
+
+	// if rootCa, err = auth.CreateCertificate(serverKey, nil, auth.CertificateOptions{
+	// 	Subject: pkix.Name{
+	// 		CommonName: "Log Stream",
+	// 	},
+	// 	Expiry: time.Now().AddDate(100, 0, 0),
+	// 	Type:   auth.Root,
+	// }); err != nil {
+	// 	return
+	// }
+
+	// if serverCert, err = auth.CreateCertificate(serverKey, rootCa, auth.CertificateOptions{
+	// 	PublicKey:   serverKey.Public(),
+	// 	Expiry:      time.Now().AddDate(100, 0, 0),
+	// 	DNSNames:    []string{"localhost"},
+	// 	IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	// 	Type:        auth.Server,
+	// }); err != nil {
+	// 	return
+	// }
+
+	// if clientKey, err = auth.CreatePrivateKey(); err != nil {
+	// 	return
+	// }
+
+	// if csr, err = auth.CreateCsr(clientKey); err != nil {
+	// 	return
+	// }
+
+	// if clientCert, err = auth.CreateCertificate(serverKey, rootCa, csr, auth.CertificateOptions{
+	// 	SubjectKeyId: 1,
+	// 	Expiry:       time.Now().AddDate(100, 0, 0),
+	// 	Type:         auth.Client,
+	// }); err != nil {
+	// 	return
+	// }
+
+	if err = rootCa.FromFile("root.pem"); err != nil {
+		log.Fatal(err)
+	}
+
+	if err = serverKey.FromFile("server.key"); err != nil {
+		log.Fatal(err)
+	}
+
+	if err = serverCert.FromFile("server.cert"); err != nil {
+		log.Fatal(err)
+	}
+
+	// rootCa.ToFile("root.pem")
+	// clientKey.ToFile("client.key")
+	// clientCert.ToFile("client.cert")
+	// serverKey.ToFile("server.key")
+	// serverCert.ToFile("server.cert")
+
+	// log.Println(rootCa)
+	// log.Println(clientKey)
+	// log.Println(clientCert)
+
+	server := testServer(ctx)
+	if err := server.Listen(logger.ServerTLS{
+		Address:     "127.0.0.1:4610",
+		RootCa:      rootCa,
+		Certificate: serverCert,
+		PrivateKey:  serverKey,
+	}); err != nil {
+		log.Println(err)
 	}
 
 	return nil
