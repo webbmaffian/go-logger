@@ -174,6 +174,7 @@ func (l *Logger) newEntry(severity Severity, message string, args ...any) *Entry
 	e := l.queue.acquireEntry(l.opt.TimeNow())
 	e.Severity = severity
 	e.Message = truncate(message, math.MaxUint8)
+	e.parseArgs(args)
 
 	return e
 }

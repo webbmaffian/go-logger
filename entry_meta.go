@@ -2,20 +2,29 @@ package logger
 
 import "math"
 
-func Meta(key string, value string) meta {
-	return meta{key, value}
+// Key-value pairs of arbitrary meta
+func Meta(v ...any) meta {
+	return meta(v)
 }
 
-type meta struct {
-	key   string
-	value string
-}
+type meta []any
 
 func (m meta) writeEntry(e *Entry) {
-	if e.MetaCount < MaxMetaCount {
-		e.MetaKeys[e.MetaCount] = truncate(m.key, math.MaxUint8)
-		e.MetaValues[e.MetaCount] = truncate(m.value, math.MaxUint16)
-		e.MetaCount++
-		e.Level = max(e.Level, 6)
+	e.Level = max(e.Level, 6)
+
+	// Round down to an even number
+	l := len(m) - (len(m) % 2)
+
+	for i := 0; i < l; i++ {
+		if e.MetaCount < MaxMetaCount {
+			break
+		}
+
+		if i%2 == 0 {
+			e.MetaKeys[e.MetaCount] = truncate(stringify(m[i-1]), math.MaxUint8)
+		} else {
+			e.MetaValues[e.MetaCount] = truncate(stringify(m[i]), math.MaxUint16)
+			e.MetaCount++
+		}
 	}
 }

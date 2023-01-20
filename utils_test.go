@@ -1,6 +1,8 @@
 package logger
 
-import "testing"
+import (
+	"testing"
+)
 
 func BenchmarkTruncateShort(b *testing.B) {
 	shortString := "foobar"

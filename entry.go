@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"math"
 	"runtime"
-	"strconv"
 
 	"github.com/rs/xid"
 )
@@ -290,20 +289,12 @@ func (e *Entry) parseArgs(args []any) {
 		case entryWriter:
 			v.writeEntry(e)
 
-		case string:
+		default:
 			if e.TagsCount < 32 {
-				e.Tags[e.TagsCount] = truncate(v, math.MaxUint8)
+				e.Tags[e.TagsCount] = truncate(stringify(v), math.MaxUint8)
 				e.TagsCount++
 				e.Level = max(e.Level, 5)
 			}
-
-		case int:
-			if e.TagsCount < 32 {
-				e.Tags[e.TagsCount] = strconv.Itoa(v)
-				e.TagsCount++
-				e.Level = max(e.Level, 5)
-			}
-
 		}
 	}
 }
