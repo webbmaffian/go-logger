@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+func BenchmarkBareboneLog(b *testing.B) {
+	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
+		TimeNow:            FastTimeNow(context.Background()),
+		StackTraceSeverity: NOTICE,
+	})
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		logger.log(DEBUG, "Created order %s", nil)
+	}
+
+	// logger.Close()
+}
+
+func BenchmarkNewEntry(b *testing.B) {
+	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
+		TimeNow:            FastTimeNow(context.Background()),
+		StackTraceSeverity: NOTICE,
+	})
+
+	for i := 0; i < b.N; i++ {
+		e := logger.newEntry(DEBUG, "", nil)
+		logger.queue.releaseEntry(e)
+	}
+}
+
 func BenchmarkLog(b *testing.B) {
 	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
 		TimeNow:            FastTimeNow(context.Background()),

@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"testing"
 
 	"github.com/rs/xid"
@@ -56,6 +57,23 @@ func BenchmarkEntryDecode(b *testing.B) {
 	b.Run("no_copy", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			e.Decode(buf[:size], true)
+		}
+	})
+}
+
+func BenchmarkXidGenerate(b *testing.B) {
+	f := FastTimeNow(context.Background())
+	b.ResetTimer()
+
+	b.Run("Standard", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = xid.New()
+		}
+	})
+
+	b.Run("WithFastTime", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = xid.NewWithTime(f())
 		}
 	})
 }
