@@ -3,7 +3,38 @@ package logger
 import (
 	"context"
 	"testing"
+	"time"
 )
+
+func BenchmarkLog10Fields(b *testing.B) {
+	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
+		TimeNow:            FastTimeNow(context.Background()),
+		StackTraceSeverity: NOTICE,
+	})
+
+	now := time.Now()
+	dur := time.Hour
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// logger.log(DEBUG, "", nil)
+		logger.Debug("Hello world", Meta(
+			"foo", "bar",
+			"foo", now,
+			"foo", dur,
+			"foo", 123.456,
+			"foo", "bar",
+			"foo", now,
+			"foo", dur,
+			"foo", 123.456,
+			"foo", []string{"bar"},
+			"foo", now,
+		), Category("hello"))
+	}
+
+	// logger.Close()
+}
 
 func BenchmarkBareboneLog(b *testing.B) {
 	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
@@ -14,7 +45,8 @@ func BenchmarkBareboneLog(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		logger.log(DEBUG, "Created order %s", nil)
+		// logger.log(DEBUG, "", nil)
+		logger.Debug("")
 	}
 
 	// logger.Close()
@@ -25,6 +57,8 @@ func BenchmarkNewEntry(b *testing.B) {
 		TimeNow:            FastTimeNow(context.Background()),
 		StackTraceSeverity: NOTICE,
 	})
+
+	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		e := logger.newEntry(DEBUG, "", nil)

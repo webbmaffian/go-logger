@@ -73,43 +73,43 @@ type Logger struct {
 }
 
 // System is unusable - a panic condition
-func (l *Logger) Emerg(message string, args ...any) xid.ID {
-	return l.log(EMERG, message, args)
+func (l *Logger) Emerg(message string, args ...any) {
+	l.log(EMERG, message, args)
 }
 
 // Action must be taken immediately, e.g. corrupted system database, or backup failures
-func (l *Logger) Alert(message string, args ...any) xid.ID {
-	return l.log(ALERT, message, args)
+func (l *Logger) Alert(message string, args ...any) {
+	l.log(ALERT, message, args)
 }
 
 // Critical condition that prevents a specific task, e.g. fatal error
-func (l *Logger) Crit(message string, args ...any) xid.ID {
-	return l.log(CRIT, message, args)
+func (l *Logger) Crit(message string, args ...any) {
+	l.log(CRIT, message, args)
 }
 
 // Non-critical errors, but that must be fixed
-func (l *Logger) Err(message string, args ...any) xid.ID {
-	return l.log(ERR, message, args)
+func (l *Logger) Err(message string, args ...any) {
+	l.log(ERR, message, args)
 }
 
 // Warnings about unexpected conditions that might lead to errors further on
-func (l *Logger) Warning(message string, args ...any) xid.ID {
-	return l.log(WARNING, message, args)
+func (l *Logger) Warning(message string, args ...any) {
+	l.log(WARNING, message, args)
 }
 
 // Normal but significant conditions
-func (l *Logger) Notice(message string, args ...any) xid.ID {
-	return l.log(NOTICE, message, args)
+func (l *Logger) Notice(message string, args ...any) {
+	l.log(NOTICE, message, args)
 }
 
 // Informational events of normal operations, e.g. taken actions or user errors
-func (l *Logger) Info(message string, args ...any) xid.ID {
-	return l.log(INFO, message, args)
+func (l *Logger) Info(message string, args ...any) {
+	l.log(INFO, message, args)
 }
 
 // Helpful information for troubleshooting
-func (l *Logger) Debug(message string, args ...any) xid.ID {
-	return l.log(DEBUG, message, args)
+func (l *Logger) Debug(message string, args ...any) {
+	l.log(DEBUG, message, args)
 }
 
 func (l *Logger) LogError(err error) (entryId xid.ID) {
@@ -159,7 +159,7 @@ func (l *Logger) NewError(err any, args ...any) error {
 	return e
 }
 
-func (l *Logger) log(severity Severity, message string, args []any) xid.ID {
+func (l *Logger) log(severity Severity, message string, args []any) {
 	e := l.newEntry(severity, message, args)
 
 	if severity <= l.opt.StackTraceSeverity {
@@ -167,8 +167,6 @@ func (l *Logger) log(severity Severity, message string, args []any) xid.ID {
 	}
 
 	l.queue.putEntry(e)
-
-	return e.Id
 }
 
 func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry {

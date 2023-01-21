@@ -1,7 +1,5 @@
 package logger
 
-import "math"
-
 // Key-value pairs of arbitrary meta
 func Meta(v ...any) meta {
 	return meta(v)
@@ -21,9 +19,9 @@ func (m meta) writeEntry(e *Entry) {
 		}
 
 		if i%2 == 0 {
-			e.MetaKeys[e.MetaCount] = truncate(stringify(m[i-1]), math.MaxUint8)
+			e.MetaKeys[e.MetaCount] = truncate(stringify(m[i]), MaxMetaKeySize)
 		} else {
-			e.MetaValues[e.MetaCount] = truncate(stringify(m[i]), math.MaxUint16)
+			e.MetaValues[e.MetaCount] = truncate(stringify(m[i]), MaxMetaValueSize)
 			e.MetaCount++
 		}
 	}
