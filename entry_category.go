@@ -1,7 +1,7 @@
 package logger
 
-type Category string
+type Category uint8
 
 func (c Category) writeEntry(e *Entry) {
-	e.Category = string(c)
+	e.CategoryId = uint8(c)
 }

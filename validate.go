@@ -53,8 +53,8 @@ func validateEntryBytes(b []byte) (err error) {
 		case _3_Message:
 			s += uint16(b[s]) + 1
 
-		case _4_Category:
-			s += uint16(b[s]) + 1
+		case _4_CategoryId:
+			s++
 
 		case _5_Tags:
 			tagsCount := int(b[s])

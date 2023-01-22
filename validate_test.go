@@ -11,7 +11,6 @@ func TestValidateEntryBytes(t *testing.T) {
 
 	e := Entry{
 		Id:         xid.New(),
-		Category:   "foobar",
 		Message:    "lorem ipsum dolor sit amet",
 		Tags:       [8]string{"foo", "bar", "baz"},
 		TagsCount:  3,
@@ -34,7 +33,6 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 
 	e := Entry{
 		Id:         xid.New(),
-		Category:   "foobar",
 		Message:    "lorem ipsum dolor sit amet",
 		Tags:       [8]string{"foo", "bar", "baz"},
 		TagsCount:  3,

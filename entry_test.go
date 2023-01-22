@@ -12,7 +12,6 @@ func BenchmarkEntryEncode(b *testing.B) {
 
 	e := Entry{
 		Id:         xid.New(),
-		Category:   "foobar",
 		Message:    "lorem ipsum dolor sit amet",
 		Tags:       [8]string{"foo", "bar", "baz"},
 		TagsCount:  3,
@@ -34,7 +33,6 @@ func BenchmarkEntryDecode(b *testing.B) {
 
 	e := Entry{
 		Id:         xid.New(),
-		Category:   "foobar",
 		Message:    "lorem ipsum dolor sit amet",
 		Tags:       [8]string{"foo", "bar", "baz"},
 		TagsCount:  3,

@@ -30,7 +30,7 @@ func BenchmarkLog10Fields(b *testing.B) {
 			"foo", 123.456,
 			"foo", []string{"bar"},
 			"foo", now,
-		), Category("hello"))
+		), Category(123))
 	}
 
 	// logger.Close()

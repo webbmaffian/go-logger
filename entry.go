@@ -18,9 +18,8 @@ import (
 	3. Message
 		1 byte (uint8) length (X)
 		X bytes string
-	4. Category
-		1 byte (uint8) length (X)
-		X bytes string
+	4. CategoryId
+		1 byte (uint8)
 	5. Tags
 		1 byte (uint8) count
 			1 byte (uint8) length (X)
@@ -46,11 +45,11 @@ type level uint8
 const (
 	MaxEntrySize          = 65_507 // Should fit a UDP packet
 	MaxMessageSize        = math.MaxUint8
-	MaxCategorySize       = math.MaxUint8
 	MaxMetaKeySize        = math.MaxUint8
 	MaxMetaValueSize      = math.MaxUint16
 	MaxStackTracePathSize = math.MaxUint8
 	MaxMetaCount          = 32
+	MaxMetricCount        = 32
 	MaxStackTraceCount    = 16
 	MaxTagsCount          = 8
 )
@@ -60,27 +59,30 @@ const (
 	_1_EntryId
 	_2_Severity
 	_3_Message
-	_4_Category
+	_4_CategoryId
 	_5_Tags
 	_6_Meta
 	_7_Stack_trace
 )
 
 type Entry struct {
-	MetaKeys             [MaxMetaCount]string
-	MetaValues           [MaxMetaCount]string
-	StackTracePaths      [MaxStackTraceCount]string
-	StackTraceRowNumbers [MaxStackTraceCount]uint16
-	Tags                 [MaxTagsCount]string
-	Category             string
-	Message              string
-	Id                   xid.ID
-	BucketId             uint32
-	Severity             Severity
-	Level                level
-	TagsCount            uint8
-	MetaCount            uint8
-	StackTraceCount      uint8
+	MetaKeys        [MaxMetaCount]string
+	MetaValues      [MaxMetaCount]string
+	MetricKeys      [MaxMetricCount]string
+	MetricValues    [MaxMetricCount]int32
+	StackTracePaths [MaxStackTraceCount]string
+	StackTraceLines [MaxStackTraceCount]uint16
+	Tags            [MaxTagsCount]string
+	Message         string
+	Id              xid.ID
+	BucketId        uint32
+	Severity        Severity
+	Level           level
+	CategoryId      uint8
+	TagsCount       uint8
+	MetaCount       uint8
+	MetricCount     uint8
+	StackTraceCount uint8
 }
 
 func (e Entry) String() string {
@@ -115,10 +117,9 @@ func (e *Entry) Encode(b []byte) (s int) {
 			s++
 			s += copy(b[s:], e.Message)
 
-		case _4_Category:
-			b[s] = uint8(len(e.Category))
+		case _4_CategoryId:
+			b[s] = e.CategoryId
 			s++
-			s += copy(b[s:], e.Category)
 
 		case _5_Tags:
 			b[s] = e.TagsCount
@@ -167,8 +168,8 @@ func (e *Entry) Encode(b []byte) (s int) {
 				b[s] = uint8(pathLen)
 				s++
 				s += copy(b[s:], e.StackTracePaths[i])
-				b[s] = byte(e.StackTraceRowNumbers[i] >> 8)
-				b[s+1] = byte(e.StackTraceRowNumbers[i])
+				b[s] = byte(e.StackTraceLines[i] >> 8)
+				b[s+1] = byte(e.StackTraceLines[i])
 				s += 2
 			}
 		}
@@ -222,11 +223,9 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 			e.Message = toString(b[s:s+size], unsafe)
 			s += size
 
-		case _4_Category:
-			size := uint16(b[s])
+		case _4_CategoryId:
+			e.CategoryId = b[s]
 			s++
-			e.Category = toString(b[s:s+size], unsafe)
-			s += size
 
 		case _5_Tags:
 			e.TagsCount = b[s]
@@ -265,7 +264,7 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 				e.StackTracePaths[i] = toString(b[s:s+size], unsafe)
 				s += size
 
-				e.StackTraceRowNumbers[i] = binary.BigEndian.Uint16(b[s : s+2])
+				e.StackTraceLines[i] = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
 			}
 		}
@@ -314,7 +313,7 @@ func (e *Entry) addStackTrace(skip int) {
 	for i := 0; i < n; i++ {
 		frame, ok := frames.Next()
 		e.StackTracePaths[i] = frame.File
-		e.StackTraceRowNumbers[i] = uint16(frame.Line)
+		e.StackTraceLines[i] = uint16(frame.Line)
 
 		if !ok {
 			break
