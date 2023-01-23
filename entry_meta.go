@@ -14,7 +14,7 @@ func (m meta) writeEntry(e *Entry) {
 	l := len(m) - (len(m) % 2)
 
 	for i := 0; i < l; i++ {
-		if e.MetaCount < MaxMetaCount {
+		if e.MetaCount >= MaxMetaCount {
 			break
 		}
 

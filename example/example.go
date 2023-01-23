@@ -443,7 +443,7 @@ func testServer(ctx context.Context) logger.Server {
 			return
 		}
 
-		log.Printf("server: got message: %+v\n", e.StackTracePaths, e.StackTraceRowNumbers)
+		log.Printf("server: got message: %d: %+v %+v\n", e.MetricCount, e.MetricKeys, e.MetricValues)
 		// log.Printf("server: %+v\n", e.StackTracePaths[:e.StackTraceCount])
 		// log.Printf("server:  %+v\n", e.StackTraceRowNumbers[:e.StackTraceCount])
 		return

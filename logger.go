@@ -167,6 +167,7 @@ func (l *Logger) log(severity Severity, message string, args []any) {
 	}
 
 	l.queue.putEntry(e)
+	// l.queue.releaseEntry(e)
 }
 
 func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry {

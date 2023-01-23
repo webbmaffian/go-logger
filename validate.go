@@ -10,6 +10,7 @@ var (
 	ErrTooLong           = errors.New("entry too long")
 	ErrInvalidSeverity   = errors.New("invalid severity")
 	ErrTooManyTags       = errors.New("too many tags")
+	ErrTooManyMetric     = errors.New("too many metric key/value pairs")
 	ErrTooManyMeta       = errors.New("too many meta key/value pairs")
 	ErrTooManyStackTrace = errors.New("too many stack traces")
 	ErrCorruptEntry      = errors.New("corrupt entry")
@@ -58,7 +59,7 @@ func validateEntryBytes(b []byte) (err error) {
 
 		case _5_Tags:
 			tagsCount := int(b[s])
-			if tagsCount > 32 {
+			if tagsCount > MaxTagsCount {
 				return ErrTooManyTags
 			}
 			s++
@@ -67,9 +68,25 @@ func validateEntryBytes(b []byte) (err error) {
 				s += uint16(b[s]) + 1
 			}
 
-		case _6_Meta:
+		case _6_Metric:
+			metricCount := int(b[s])
+			if metricCount > MaxMetricCount {
+				return ErrTooManyMetric
+			}
+			s++
+
+			for i := 0; i < metricCount; i++ {
+				if s >= totalLen {
+					return ErrCorruptEntry
+				}
+
+				s += uint16(b[s]) + 1
+				s += 4
+			}
+
+		case _7_Meta:
 			metaCount := int(b[s])
-			if metaCount > 32 {
+			if metaCount > MaxMetaCount {
 				return ErrTooManyMeta
 			}
 			s++
@@ -83,9 +100,9 @@ func validateEntryBytes(b []byte) (err error) {
 				s += binary.BigEndian.Uint16(b[s:s+2]) + 2
 			}
 
-		case _7_Stack_trace:
+		case _8_Stack_trace:
 			traceCount := int(b[s])
-			if traceCount > 32 {
+			if traceCount > MaxStackTraceCount {
 				return ErrTooManyStackTrace
 			}
 			s++

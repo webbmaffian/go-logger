@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"reflect"
@@ -106,6 +107,8 @@ func stringify(val any) string {
 		} else {
 			return "false"
 		}
+	case []byte:
+		return bytesToString(v)
 	case int:
 		return strconv.FormatInt(int64(v), 10)
 	case int8:
@@ -130,9 +133,43 @@ func stringify(val any) string {
 		return strconv.FormatFloat(float64(v), 'f', 6, 32)
 	case float64:
 		return strconv.FormatFloat(v, 'f', 6, 64)
-	case []byte:
-		return bytesToString(v)
+
 	}
 
 	return ""
+}
+
+var ErrNaN = errors.New("not a number")
+
+func toInt32(val any) (n int32, err error) {
+	switch v := val.(type) {
+	case int:
+		n = int32(v)
+	case int8:
+		n = int32(v)
+	case int16:
+		n = int32(v)
+	case int32:
+		n = int32(v)
+	case int64:
+		n = int32(v)
+	case uint:
+		n = int32(v)
+	case uint8:
+		n = int32(v)
+	case uint16:
+		n = int32(v)
+	case uint32:
+		n = int32(v)
+	case uint64:
+		n = int32(v)
+	case float32:
+		n = int32(v)
+	case float64:
+		n = int32(v)
+	default:
+		err = ErrNaN
+	}
+
+	return
 }

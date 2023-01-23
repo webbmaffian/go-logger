@@ -17,7 +17,7 @@ func TestValidateEntryBytes(t *testing.T) {
 		MetaKeys:   [32]string{"foo", "bar", "baz"},
 		MetaValues: [32]string{"foo", "bar", "baz"},
 		MetaCount:  3,
-		Level:      _7_Stack_trace,
+		Level:      _8_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])
@@ -39,7 +39,7 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 		MetaKeys:   [32]string{"foo", "bar", "baz"},
 		MetaValues: [32]string{"foo", "bar", "baz"},
 		MetaCount:  3,
-		Level:      _7_Stack_trace,
+		Level:      _8_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])

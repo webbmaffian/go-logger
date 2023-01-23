@@ -61,8 +61,9 @@ const (
 	_3_Message
 	_4_CategoryId
 	_5_Tags
-	_6_Meta
-	_7_Stack_trace
+	_6_Metric
+	_7_Meta
+	_8_Stack_trace
 )
 
 type Entry struct {
@@ -71,7 +72,7 @@ type Entry struct {
 	MetricKeys      [MaxMetricCount]string
 	MetricValues    [MaxMetricCount]int32
 	StackTracePaths [MaxStackTraceCount]string
-	StackTraceLines [MaxStackTraceCount]uint16
+	StackTraceLines [16]uint16
 	Tags            [MaxTagsCount]string
 	Message         string
 	Id              xid.ID
@@ -130,7 +131,29 @@ func (e *Entry) Encode(b []byte) (s int) {
 				s += copy(b[s:], e.Tags[i])
 			}
 
-		case _6_Meta:
+		case _6_Metric:
+			pos := s
+			b[s] = e.MetricCount
+			s++
+			for i = 0; i < e.MetricCount; i++ {
+				keyLen := len(e.StackTracePaths[i])
+
+				if s+keyLen+5 > MaxEntrySize {
+					b[pos] = i
+					break
+				}
+
+				b[s] = uint8(keyLen)
+				s++
+				s += copy(b[s:], e.MetricKeys[i])
+				b[s] = byte(e.MetricValues[i] >> 24)
+				b[s+1] = byte(e.MetricValues[i] >> 16)
+				b[s+2] = byte(e.MetricValues[i] >> 8)
+				b[s+3] = byte(e.MetricValues[i])
+				s += 4
+			}
+
+		case _7_Meta:
 			pos := s
 			b[s] = e.MetaCount
 			s++
@@ -153,7 +176,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 				s += copy(b[s:], e.MetaValues[i])
 			}
 
-		case _7_Stack_trace:
+		case _8_Stack_trace:
 			pos := s
 			b[s] = e.StackTraceCount
 			s++
@@ -199,7 +222,7 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 		return ErrCorruptEntry
 	}
 
-	for e.Level = 0; e.Level <= _7_Stack_trace; e.Level++ {
+	for e.Level = 0; e.Level <= _8_Stack_trace; e.Level++ {
 		switch e.Level {
 
 		case _0_BucketId:
@@ -238,7 +261,21 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 				s += size
 			}
 
-		case _6_Meta:
+		case _6_Metric:
+			e.MetricCount = b[s]
+			s++
+			var i uint8
+			for i = 0; i < e.MetricCount; i++ {
+				size := uint16(b[s])
+				s++
+				e.MetricKeys[i] = toString(b[s:s+size], unsafe)
+				s += size
+
+				e.MetricValues[i] = int32(binary.BigEndian.Uint32(b[s : s+4]))
+				s += 4
+			}
+
+		case _7_Meta:
 			e.MetaCount = b[s]
 			s++
 			var i uint8
@@ -254,7 +291,7 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 				s += size
 			}
 
-		case _7_Stack_trace:
+		case _8_Stack_trace:
 			e.StackTraceCount = b[s]
 			s++
 			var i uint8
@@ -308,7 +345,7 @@ func (e *Entry) addStackTrace(skip int) {
 
 	frames := runtime.CallersFrames(trace[:n])
 	e.StackTraceCount = uint8(n)
-	e.Level = _7_Stack_trace
+	e.Level = _8_Stack_trace
 
 	for i := 0; i < n; i++ {
 		frame, ok := frames.Next()

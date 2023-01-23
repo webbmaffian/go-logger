@@ -28,6 +28,7 @@ func (q *entryQueue) acquireEntry(t time.Time) *Entry {
 	e.Id = xid.NewWithTime(t)
 	e.Level = 3
 	e.TagsCount = 0
+	e.MetricCount = 0
 	e.MetaCount = 0
 	e.StackTraceCount = 0
 

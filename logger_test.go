@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+func BenchmarkLogMetrics(b *testing.B) {
+	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
+		TimeNow:            FastTimeNow(context.Background()),
+		StackTraceSeverity: NOTICE,
+	})
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// logger.log(DEBUG, "", nil)
+		logger.Debug("Hello world")
+	}
+
+	// logger.Close()
+}
+
 func BenchmarkLog10Fields(b *testing.B) {
 	logger := New(context.Background(), &dummyWriter{}, LoggerOptions{
 		TimeNow:            FastTimeNow(context.Background()),
