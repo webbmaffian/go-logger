@@ -237,7 +237,7 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 			s += 12
 
 		case _2_Severity:
-			e.Severity = Severity(b[12])
+			e.Severity = Severity(b[s])
 			s++
 
 		case _3_Message:
