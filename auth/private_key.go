@@ -84,7 +84,7 @@ func (p PrivateKey) PEM() []byte {
 }
 
 func (p PrivateKey) ToFile(path string) (err error) {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 
 	if err != nil {
 		return
