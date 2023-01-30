@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
 	"errors"
 	"log"
 	"net"
@@ -52,8 +51,8 @@ func (opt ServerTLS) listen(s *server) (err error) {
 				return ErrInvalidSerialNumber
 			}
 
-			// Ensure `SubjectKeyID` is a uint64
-			if len(cert.SubjectKeyId) != 8 {
+			// Ensure `SubjectKeyID` contains one or more uint32
+			if cert.SubjectKeyId == nil || len(cert.SubjectKeyId)%4 != 0 {
 				return ErrInvalidSubjectKeyId
 			}
 
@@ -120,5 +119,5 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 
 	cert := state.PeerCertificates[0]
 
-	return s.handleRequest(binary.BigEndian.Uint32(cert.SubjectKeyId), conn)
+	return s.handleRequest(conn, cert.SubjectKeyId)
 }

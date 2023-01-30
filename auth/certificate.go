@@ -35,20 +35,24 @@ const (
 )
 
 type CertificateOptions struct {
-	Subject      pkix.Name
-	SubjectKeyId uint64
-	PublicKey    ed25519.PublicKey
-	Expiry       time.Time
-	DNSNames     []string
-	IPAddresses  []net.IP
-	Type         CertificateType
+	Subject     pkix.Name
+	BucketIds   []uint32
+	PublicKey   ed25519.PublicKey
+	Expiry      time.Time
+	DNSNames    []string
+	IPAddresses []net.IP
+	Type        CertificateType
 }
 
 func (c CertificateOptions) parseCertificateDetails(cert *x509.Certificate) (err error) {
 	cert.Subject = mergePkixNames(cert.Subject, c.Subject)
 
-	if c.SubjectKeyId != 0 {
-		cert.SubjectKeyId = binary.BigEndian.AppendUint64(nil, c.SubjectKeyId)
+	if c.BucketIds != nil {
+		cert.SubjectKeyId = make([]byte, len(c.BucketIds)*4)
+
+		for i := range c.BucketIds {
+			binary.BigEndian.PutUint32(cert.SubjectKeyId[i*4:], c.BucketIds[i])
+		}
 	}
 
 	if c.PublicKey != nil {
@@ -153,6 +157,22 @@ func CertificateX509(cert *x509.Certificate) Certificate {
 type Certificate []byte
 
 const certBlockType = "CERTIFICATE"
+
+func (c Certificate) Id() (id uuid.UUID) {
+	cert, err := c.X509()
+
+	if err != nil {
+		return
+	}
+
+	b := cert.SerialNumber.Bytes()
+
+	if len(b) == 16 {
+		copy(id[:], b)
+	}
+
+	return
+}
 
 func (c Certificate) EncodePEM(w io.Writer) (err error) {
 	return pem.Encode(w, &pem.Block{

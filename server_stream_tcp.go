@@ -55,5 +55,5 @@ func (s *server) handleTCPRequest(conn *net.TCPConn) (err error) {
 	}
 
 	// We don't know any bucket ID
-	return s.handleRequest(0, conn)
+	return s.handleRequest(conn, nil)
 }

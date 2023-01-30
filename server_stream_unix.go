@@ -42,7 +42,7 @@ func (opt ServerUnix) listen(s *server) (err error) {
 		}
 
 		go func() {
-			if err := s.handleRequest(0, conn); err != nil {
+			if err := s.handleRequest(conn, nil); err != nil {
 				log.Println("server:", err)
 			}
 		}()

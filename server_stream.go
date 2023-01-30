@@ -1,14 +1,18 @@
 package logger
 
 import (
+	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 	"log"
 	"net"
 	"time"
 )
 
-func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
+var ErrForbiddenBucket = errors.New("forbidden bucket")
+
+func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error) {
 	log.Println("incoming connection")
 	defer conn.Close()
 
@@ -40,6 +44,10 @@ func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 			break
 		}
 
+		if !validBucketId(buf[2:6], validBucketIds) {
+			return ErrForbiddenBucket
+		}
+
 		if _, err = s.entryReader.Read(buf[:size]); err != nil {
 			break
 		}
@@ -48,4 +56,18 @@ func (s *server) handleRequest(bucketId uint32, conn net.Conn) (err error) {
 	log.Println("server: closing tcp connection")
 
 	return
+}
+
+func validBucketId(needle, haystack []byte) bool {
+	if haystack == nil {
+		return true
+	}
+
+	for i := 0; i < len(haystack); i += 4 {
+		if bytes.Equal(needle, haystack[i:i+4]) {
+			return true
+		}
+	}
+
+	return false
 }
