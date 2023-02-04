@@ -19,13 +19,17 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 	var buf [MaxEntrySize]byte
 
 	for {
-		// if err = s.ctx.Err(); err != nil {
-		// 	return
-		// }
+		if err == io.EOF {
+			break
+		}
+
+		if err = s.ctx.Err(); err != nil {
+			break
+		}
 
 		conn.SetReadDeadline(s.time.Now().Add(time.Second))
 		if _, err = io.ReadFull(conn, buf[:2]); err != nil {
-			break
+			continue
 		}
 
 		size := binary.BigEndian.Uint16(buf[:2])
