@@ -24,19 +24,29 @@ import (
 		1 byte (uint8) count
 			1 byte (uint8) length (X)
 			X bytes string
-	6. Meta
+	6. Metric
+		1 byte (uint8) count (0-32)
+			1 byte (uint8) length (X)
+			X bytes string key
+			2 bytes (int16) value
+		[...31]
+	7. Meta
 		1 byte (uint8) count (0-32)
 			1 byte (uint8) length (X)
 			X bytes string key
 			2 bytes (uint16) length (Y)
 			Y bytes string value
 		[...31]
-	7. Stack trace
+	8. Stack trace
 		1 byte (uint8) count (0-8)
 			1 byte (uint8) path length (X)
 			X bytes string path
 			2 bytes (uint16) line number
 		[...]
+	9. TTL: Entry
+		2 byte (uint16) days
+	10. TTL: Meta
+		2 byte (uint16) days
 
 */
 
@@ -64,6 +74,9 @@ const (
 	_6_Metric
 	_7_Meta
 	_8_Stack_trace
+	_9_TTL_Entry
+	_10_TTL_Meta
+	_End_Level
 )
 
 type Entry struct {
@@ -72,11 +85,13 @@ type Entry struct {
 	MetricKeys      [MaxMetricCount]string
 	MetricValues    [MaxMetricCount]int32
 	StackTracePaths [MaxStackTraceCount]string
-	StackTraceLines [16]uint16
+	StackTraceLines [MaxStackTraceCount]uint16
 	Tags            [MaxTagsCount]string
 	Message         string
 	Id              xid.ID
 	BucketId        uint32
+	TtlEntry        uint16
+	TtlMeta         uint16
 	Severity        Severity
 	Level           level
 	CategoryId      uint8
@@ -195,6 +210,14 @@ func (e *Entry) Encode(b []byte) (s int) {
 				b[s+1] = byte(e.StackTraceLines[i])
 				s += 2
 			}
+
+		case _9_TTL_Entry:
+			binary.BigEndian.PutUint16(b[s:], e.TtlEntry)
+			s += 2
+
+		case _10_TTL_Meta:
+			binary.BigEndian.PutUint16(b[s:], e.TtlMeta)
+			s += 2
 		}
 	}
 
@@ -222,7 +245,7 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 		return ErrCorruptEntry
 	}
 
-	for e.Level = 0; e.Level <= _8_Stack_trace; e.Level++ {
+	for e.Level = 0; e.Level < _End_Level; e.Level++ {
 		switch e.Level {
 
 		case _0_BucketId:
@@ -304,6 +327,14 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 				e.StackTraceLines[i] = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
 			}
+
+		case _9_TTL_Entry:
+			e.TtlEntry = binary.BigEndian.Uint16(b[s:])
+			s += 2
+
+		case _10_TTL_Meta:
+			e.TtlMeta = binary.BigEndian.Uint16(b[s:])
+			s += 2
 		}
 
 		if s >= total {

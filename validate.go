@@ -116,6 +116,12 @@ func validateEntryBytes(b []byte) (err error) {
 				s += 2
 			}
 
+		case _9_TTL_Entry:
+			s += 2
+
+		case _10_TTL_Meta:
+			s += 2
+
 		default:
 			return ErrCorruptEntry
 		}
