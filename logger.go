@@ -12,8 +12,11 @@ import (
 
 type LoggerOptions struct {
 	TimeNow            func() time.Time
-	StackTraceSeverity Severity
 	EntryQueueSize     int
+	BucketId           uint32
+	DefaultEntryTTL    uint16
+	DefaultMetaTTL     uint16
+	StackTraceSeverity Severity
 }
 
 func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) Logger {
@@ -136,18 +139,15 @@ func (l *Logger) NewError(err any, args ...any) error {
 		e = v
 
 	case Severitier:
-		e = l.queue.acquireEntry(l.opt.TimeNow())
-		e.Severity = v.Severity()
+		e = l.acquireEntry(v.Severity())
 		parseErrorString(e, v.Error())
 
 	case error:
-		e = l.queue.acquireEntry(l.opt.TimeNow())
-		e.Severity = ERR
+		e = l.acquireEntry(ERR)
 		parseErrorString(e, v.Error())
 
 	case string:
-		e = l.queue.acquireEntry(l.opt.TimeNow())
-		e.Severity = ERR
+		e = l.acquireEntry(ERR)
 	}
 
 	e.parseArgs(args)
@@ -171,10 +171,19 @@ func (l *Logger) log(severity Severity, message string, args []any) {
 }
 
 func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry {
-	e := l.queue.acquireEntry(l.opt.TimeNow())
-	e.Severity = severity
+	e := l.acquireEntry(severity)
 	e.Message = truncate(message, math.MaxUint8)
 	e.parseArgs(args)
+
+	return e
+}
+
+func (l *Logger) acquireEntry(sev Severity) *Entry {
+	e := l.queue.acquireEntry(l.opt.TimeNow())
+	e.BucketId = l.opt.BucketId
+	e.Severity = sev
+	e.TtlEntry = l.opt.DefaultEntryTTL
+	e.TtlMeta = l.opt.DefaultMetaTTL
 
 	return e
 }
