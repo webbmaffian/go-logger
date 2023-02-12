@@ -2,21 +2,26 @@ package logger
 
 import (
 	"context"
-	"errors"
-	"io"
 	"net"
 	"time"
-
-	"github.com/kpango/fastime"
 )
 
-func NewServer(ctx context.Context, entryReader io.Reader) Server {
-	fastTime := fastime.New().StartTimerD(ctx, time.Second)
+func NewServer(ctx context.Context, entryProc EntryProcessor, entryPool EntryPool, options ...ServerOptions) Server {
+	var opt ServerOptions
+
+	if options != nil {
+		opt = options[0]
+	}
+
+	if opt.TimeNow == nil {
+		opt.TimeNow = time.Now
+	}
 
 	return &server{
-		ctx:         ctx,
-		entryReader: entryReader,
-		time:        fastTime,
+		ctx:       ctx,
+		entryProc: entryProc,
+		entryPool: entryPool,
+		opt:       opt,
 	}
 }
 
@@ -29,38 +34,18 @@ type Listener interface {
 }
 
 type ServerOptions struct {
-	EntryReader io.Reader
+	TimeNow func() time.Time
+	NoCopy  bool
 }
 
 type server struct {
 	ctx          context.Context
-	entryReader  io.Reader
-	time         fastime.Fastime
+	entryProc    EntryProcessor
+	entryPool    EntryPool
 	listenConfig net.ListenConfig
+	opt          ServerOptions
 }
 
 func (s *server) Listen(listener Listener) (err error) {
 	return listener.listen(s)
-}
-
-var (
-	ErrInvalidCertificate  = errors.New("invalid certificate")
-	ErrInvalidSerialNumber = errors.New("invalid serial number")
-	ErrInvalidSubjectKeyId = errors.New("invalid subject key ID")
-)
-
-func EntryReaderCallback(cb func(b []byte) error) io.Reader {
-	return entryReaderCallback{
-		cb: cb,
-	}
-}
-
-type entryReaderCallback struct {
-	cb func(b []byte) error
-}
-
-func (e entryReaderCallback) Read(b []byte) (n int, err error) {
-	err = e.cb(b)
-	n = len(b)
-	return
 }

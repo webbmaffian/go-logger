@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -81,12 +80,10 @@ func bytesToString(b []byte) string {
 }
 
 func stringToBytes(s string) (b []byte) {
-	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh.Data = sh.Data
-	bh.Cap = sh.Len
-	bh.Len = sh.Len
-	return b
+	return *(*[]byte)(unsafe.Pointer(&struct {
+		string
+		int
+	}{s, len(s)}))
 }
 
 type stringer interface {

@@ -109,6 +109,14 @@ func (e Entry) Error() string {
 	return e.Message
 }
 
+func (e *Entry) Reset() {
+	e.Level = _3_Message
+	e.TagsCount = 0
+	e.MetricCount = 0
+	e.MetaCount = 0
+	e.StackTraceCount = 0
+}
+
 func (e *Entry) Encode(b []byte) (s int) {
 	var i uint8
 	var l level
@@ -227,6 +235,8 @@ func (e *Entry) Encode(b []byte) (s int) {
 }
 
 func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
+	e.Reset()
+
 	var unsafe bool
 
 	if noCopy != nil && noCopy[0] {

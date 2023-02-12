@@ -10,6 +10,9 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 	defer conn.Close()
 	// log.Println("server: incoming connection")
 
+	entry := s.entryPool.Acquire()
+	defer s.entryPool.Release(entry)
+
 	var buf [MaxEntrySize]byte
 	var n int
 
@@ -20,7 +23,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 
 		// log.Println("server: waiting for message")
 
-		conn.SetReadDeadline(s.time.Now().Add(time.Second))
+		conn.SetReadDeadline(s.opt.TimeNow().Add(time.Second))
 		n, _, err = conn.ReadFrom(buf[:])
 
 		if err != nil {
@@ -37,7 +40,11 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 			continue
 		}
 
-		if _, err = s.entryReader.Read(buf[:n]); err != nil {
+		if err = entry.Decode(buf[:n], s.opt.NoCopy); err != nil {
+			break
+		}
+
+		if err = s.entryProc.ProcessEntry(entry); err != nil {
 			break
 		}
 	}

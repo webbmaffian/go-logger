@@ -2,8 +2,6 @@ package logger
 
 import (
 	"context"
-	"io"
-	"log"
 	"math"
 	"time"
 
@@ -12,14 +10,13 @@ import (
 
 type LoggerOptions struct {
 	TimeNow            func() time.Time
-	EntryQueueSize     int
 	BucketId           uint32
 	DefaultEntryTTL    uint16
 	DefaultMetaTTL     uint16
 	StackTraceSeverity Severity
 }
 
-func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) Logger {
+func New(ctx context.Context, entryProc EntryProcessor, entryPool EntryPool, options ...LoggerOptions) Logger {
 	var opt LoggerOptions
 
 	if options != nil {
@@ -30,49 +27,19 @@ func New(ctx context.Context, output io.WriteCloser, options ...LoggerOptions) L
 		opt.TimeNow = time.Now
 	}
 
-	if opt.EntryQueueSize <= 0 {
-		opt.EntryQueueSize = 100
-	}
-
-	queue := newEntryQueue(opt.EntryQueueSize)
-
-	go func() {
-		var buf [MaxEntrySize]byte
-
-	loop:
-		for {
-			select {
-			case err := <-ctx.Done():
-				log.Println(err)
-				break loop
-			case e, ok := <-queue.ch:
-				if ok {
-					s := e.Encode(buf[:])
-					_ = s
-
-					if _, err := output.Write(buf[:s]); err != nil {
-						log.Println(err)
-					}
-				}
-
-				queue.releaseEntry(e)
-			}
-		}
-
-		output.Close()
-	}()
-
 	return Logger{
-		ctx:   ctx,
-		queue: queue,
-		opt:   opt,
+		opt:       opt,
+		ctx:       ctx,
+		entryPool: entryPool,
+		entryProc: entryProc,
 	}
 }
 
 type Logger struct {
-	ctx   context.Context
-	queue *entryQueue
-	opt   LoggerOptions
+	opt       LoggerOptions
+	ctx       context.Context
+	entryPool EntryPool
+	entryProc EntryProcessor
 }
 
 // System is unusable - a panic condition
@@ -119,7 +86,7 @@ func (l *Logger) LogError(err error) (entryId xid.ID) {
 	err = l.NewError(err)
 
 	if e, ok := err.(*Entry); ok {
-		l.queue.putEntry(e)
+		l.entryProc.ProcessEntry(e)
 		entryId = e.Id
 	}
 
@@ -166,7 +133,7 @@ func (l *Logger) log(severity Severity, message string, args []any) {
 		e.addStackTrace(4)
 	}
 
-	l.queue.putEntry(e)
+	l.entryProc.ProcessEntry(e)
 	// l.queue.releaseEntry(e)
 }
 
@@ -179,15 +146,12 @@ func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry 
 }
 
 func (l *Logger) acquireEntry(sev Severity) *Entry {
-	e := l.queue.acquireEntry(l.opt.TimeNow())
+	e := l.entryPool.Acquire()
+	e.Id = xid.NewWithTime(l.opt.TimeNow())
 	e.BucketId = l.opt.BucketId
 	e.Severity = sev
 	e.TtlEntry = l.opt.DefaultEntryTTL
 	e.TtlMeta = l.opt.DefaultMetaTTL
 
 	return e
-}
-
-func (l *Logger) Close() {
-	l.queue.close()
 }

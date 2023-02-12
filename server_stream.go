@@ -16,6 +16,9 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 	log.Println("incoming connection")
 	defer conn.Close()
 
+	entry := s.entryPool.Acquire()
+	defer s.entryPool.Release(entry)
+
 	var buf [MaxEntrySize]byte
 
 	for {
@@ -27,7 +30,7 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 			break
 		}
 
-		conn.SetReadDeadline(s.time.Now().Add(time.Second))
+		conn.SetReadDeadline(s.opt.TimeNow().Add(time.Second))
 		if _, err = io.ReadFull(conn, buf[:2]); err != nil {
 			continue
 		}
@@ -37,7 +40,7 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 		// log.Printf("server: waiting for message of %d bytes\n", size)
 		// log.Println("Reading", size, "bytes...")
 
-		conn.SetReadDeadline(s.time.Now().Add(time.Second * 5))
+		conn.SetReadDeadline(s.opt.TimeNow().Add(time.Second * 5))
 		if _, err = io.ReadFull(conn, buf[2:size]); err != nil {
 			continue
 		}
@@ -52,7 +55,11 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 			return ErrForbiddenBucket
 		}
 
-		if _, err = s.entryReader.Read(buf[:size]); err != nil {
+		if err = entry.Decode(buf[:size], s.opt.NoCopy); err != nil {
+			break
+		}
+
+		if err = s.entryProc.ProcessEntry(entry); err != nil {
 			break
 		}
 	}
