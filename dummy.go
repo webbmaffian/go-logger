@@ -1,17 +1,22 @@
 package logger
 
 import (
-	"io"
+	"unsafe"
 )
 
-var _ io.WriteCloser = dummyWriter{}
+var _ EntryProcessor = (*dummyWriter)(nil)
 
-type dummyWriter struct{}
+type dummyWriter struct {
+	pool EntryPool
+}
 
-func (d dummyWriter) Write(b []byte) (n int, err error) {
+func (w *dummyWriter) ProcessEntry(e *Entry, _ unsafe.Pointer) (err error) {
+	w.pool.Release(e)
 	return
 }
 
-func (d dummyWriter) Close() error {
+func (dummyWriter) AcquireCtx() unsafe.Pointer {
 	return nil
 }
+
+func (dummyWriter) ReleaseCtx(_ unsafe.Pointer) {}

@@ -1,28 +1,21 @@
 package logger
 
 // Key-value pairs of arbitrary meta
-func Meta(v ...any) meta {
-	return meta(v)
+func Meta(key string, val any) meta {
+	return meta{key, val}
 }
 
-type meta []any
+type meta struct {
+	key string
+	val any
+}
 
 func (m meta) writeEntry(e *Entry) {
-	e.Level = max(e.Level, 6)
+	e.Level = max(e.Level, _7_Meta)
 
-	// Round down to an even number
-	l := len(m) - (len(m) % 2)
-
-	for i := 0; i < l; i++ {
-		if e.MetaCount >= MaxMetaCount {
-			break
-		}
-
-		if i%2 == 0 {
-			e.MetaKeys[e.MetaCount] = truncate(stringify(m[i]), MaxMetaKeySize)
-		} else {
-			e.MetaValues[e.MetaCount] = truncate(stringify(m[i]), MaxMetaValueSize)
-			e.MetaCount++
-		}
+	if e.MetaCount < MaxMetaCount {
+		e.MetaKeys[e.MetaCount] = truncate(m.key, MaxMetaKeySize)
+		e.MetaValues[e.MetaCount] = truncate(stringify(m.val), MaxMetaValueSize)
+		e.MetaCount++
 	}
 }

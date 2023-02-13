@@ -28,18 +28,39 @@ func New(ctx context.Context, entryProc EntryProcessor, entryPool EntryPool, opt
 	}
 
 	return Logger{
-		opt:       opt,
-		ctx:       ctx,
-		entryPool: entryPool,
-		entryProc: entryProc,
+		core: &coreLogger{
+			opt:       opt,
+			ctx:       ctx,
+			entryPool: entryPool,
+			entryProc: entryProc,
+		},
 	}
 }
 
-type Logger struct {
+type coreLogger struct {
 	opt       LoggerOptions
 	ctx       context.Context
 	entryPool EntryPool
 	entryProc EntryProcessor
+}
+
+type Logger struct {
+	core      *coreLogger
+	baseEntry *Entry
+}
+
+func (l *Logger) Logger(args ...any) Logger {
+	e := l.acquireEntry(INFO)
+	e.parseArgs(args)
+
+	if l.baseEntry != nil {
+		e.Append(l.baseEntry)
+	}
+
+	return Logger{
+		core:      l.core,
+		baseEntry: e,
+	}
 }
 
 // System is unusable - a panic condition
@@ -86,7 +107,7 @@ func (l *Logger) LogError(err error) (entryId xid.ID) {
 	err = l.NewError(err)
 
 	if e, ok := err.(*Entry); ok {
-		l.entryProc.ProcessEntry(e, nil)
+		l.core.entryProc.ProcessEntry(e, nil)
 		entryId = e.Id
 	}
 
@@ -119,7 +140,11 @@ func (l *Logger) NewError(err any, args ...any) error {
 
 	e.parseArgs(args)
 
-	if e.Severity <= l.opt.StackTraceSeverity && e.StackTraceCount == 0 {
+	if l.baseEntry != nil {
+		e.Append(l.baseEntry)
+	}
+
+	if e.Severity <= l.core.opt.StackTraceSeverity && e.StackTraceCount == 0 {
 		e.addStackTrace(3)
 	}
 
@@ -129,12 +154,11 @@ func (l *Logger) NewError(err any, args ...any) error {
 func (l *Logger) log(severity Severity, message string, args []any) {
 	e := l.newEntry(severity, message, args)
 
-	if severity <= l.opt.StackTraceSeverity {
+	if severity <= l.core.opt.StackTraceSeverity {
 		e.addStackTrace(4)
 	}
 
-	l.entryProc.ProcessEntry(e, nil)
-	// l.queue.releaseEntry(e)
+	l.core.entryProc.ProcessEntry(e, nil)
 }
 
 func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry {
@@ -142,16 +166,20 @@ func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry 
 	e.Message = truncate(message, math.MaxUint8)
 	e.parseArgs(args)
 
+	if l.baseEntry != nil {
+		e.Append(l.baseEntry)
+	}
+
 	return e
 }
 
 func (l *Logger) acquireEntry(sev Severity) *Entry {
-	e := l.entryPool.Acquire()
-	e.Id = xid.NewWithTime(l.opt.TimeNow())
-	e.BucketId = l.opt.BucketId
+	e := l.core.entryPool.Acquire()
+	e.Id = xid.NewWithTime(l.core.opt.TimeNow())
+	e.BucketId = l.core.opt.BucketId
 	e.Severity = sev
-	e.TtlEntry = l.opt.DefaultEntryTTL
-	e.TtlMeta = l.opt.DefaultMetaTTL
+	e.TtlEntry = l.core.opt.DefaultEntryTTL
+	e.TtlMeta = l.core.opt.DefaultMetaTTL
 
 	return e
 }

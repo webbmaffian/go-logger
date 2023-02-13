@@ -7,6 +7,16 @@ import (
 	"github.com/rs/xid"
 )
 
+func BenchmarkParseArgs(b *testing.B) {
+	var e Entry
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		e.parseArgs([]any{Meta("foo", "bar")})
+		e.MetaCount = 0
+	}
+}
+
 func BenchmarkEntryEncode(b *testing.B) {
 	var buf [1024]byte
 

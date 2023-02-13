@@ -53,7 +53,7 @@ import (
 type level uint8
 
 const (
-	MaxEntrySize          = 65_507 // Should fit a UDP packet
+	MaxEntrySize          = 65_507 // Should fit in a UDP packet
 	MaxMessageSize        = math.MaxUint8
 	MaxMetaKeySize        = math.MaxUint8
 	MaxMetaValueSize      = math.MaxUint16
@@ -366,6 +366,9 @@ func (e *Entry) parseArgs(args []any) {
 		case entryWriter:
 			v.writeEntry(e)
 
+		case func(*Entry):
+			v(e)
+
 		default:
 			if e.TagsCount < 32 {
 				e.Tags[e.TagsCount] = truncate(stringify(v), math.MaxUint8)
@@ -502,4 +505,55 @@ func (e Entry) MarshalBinary() ([]byte, error) {
 // Implements encoding.BinaryUnmarshaler
 func (e *Entry) UnmarshalBinary(b []byte) error {
 	return e.Decode(b)
+}
+
+func (dst *Entry) Append(src *Entry) {
+	if dst.BucketId == 0 {
+		dst.BucketId = src.BucketId
+	}
+
+	if dst.CategoryId == 0 {
+		dst.CategoryId = src.CategoryId
+	}
+
+	if dst.TtlEntry == 0 {
+		dst.TtlEntry = src.TtlEntry
+	}
+
+	if dst.TtlMeta == 0 {
+		dst.TtlMeta = src.TtlMeta
+	}
+
+	if src.Level > dst.Level {
+		dst.Level = src.Level
+	}
+
+	for i := range src.Tags[:src.TagsCount] {
+		if dst.TagsCount >= MaxTagsCount {
+			break
+		}
+
+		dst.Tags[dst.TagsCount] = src.Tags[i]
+		dst.TagsCount++
+	}
+
+	for i := range src.MetaKeys[:src.MetaCount] {
+		if dst.MetaCount >= MaxMetaCount {
+			break
+		}
+
+		dst.MetaKeys[dst.MetaCount] = src.MetaKeys[i]
+		dst.MetaValues[dst.MetaCount] = src.MetaValues[i]
+		dst.MetaCount++
+	}
+
+	for i := range src.MetricKeys[:src.MetricCount] {
+		if dst.MetricCount >= MaxMetricCount {
+			break
+		}
+
+		dst.MetricKeys[dst.MetricCount] = src.MetricKeys[i]
+		dst.MetricValues[dst.MetricCount] = src.MetricValues[i]
+		dst.MetricCount++
+	}
 }

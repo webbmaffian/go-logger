@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -24,4 +25,27 @@ func BenchmarkStringToBytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = stringToBytes("foobar")
 	}
+}
+
+func BenchmarkStringify(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = stringify(123.123)
+	}
+}
+
+func BenchmarkFormatInt(b *testing.B) {
+	buf := make([]byte, 0, 32)
+	b.ResetTimer()
+
+	b.Run("FormatInt", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = strconv.FormatInt(123, 10)
+		}
+	})
+
+	b.Run("AppendInt", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			buf = strconv.AppendInt(buf[:0], 123, 10)
+		}
+	})
 }
