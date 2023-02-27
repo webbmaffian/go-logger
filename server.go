@@ -36,6 +36,7 @@ type Listener interface {
 type ServerOptions struct {
 	TimeNow func() time.Time
 	NoCopy  bool
+	Logger  Logger
 }
 
 type server struct {

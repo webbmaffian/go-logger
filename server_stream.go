@@ -13,7 +13,10 @@ import (
 var ErrForbiddenBucket = errors.New("forbidden bucket")
 
 func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error) {
-	log.Println("incoming connection")
+	if s.opt.Logger.core != nil {
+		s.opt.Logger.Info("opened TCP connection with IP %s", addrToIp(conn.RemoteAddr()).String())
+	}
+
 	defer conn.Close()
 
 	entryCtx := s.entryProc.AcquireCtx()
@@ -23,6 +26,7 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 	defer s.entryPool.Release(entry)
 
 	var buf [MaxEntrySize]byte
+	var counter int32
 
 	for {
 		if err == io.EOF {
@@ -65,9 +69,13 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 		if err = s.entryProc.ProcessEntry(entry, entryCtx); err != nil {
 			break
 		}
+
+		counter++
 	}
 
-	log.Println("server: closing tcp connection")
+	if s.opt.Logger.core != nil {
+		s.opt.Logger.Info("closed TCP connection with IP %s", addrToIp(conn.RemoteAddr()).String(), Metric("entriesReceived", counter))
+	}
 
 	return
 }

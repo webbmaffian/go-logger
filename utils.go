@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -169,4 +170,15 @@ func toInt32(val any) (n int32, err error) {
 	}
 
 	return
+}
+
+func addrToIp(addr net.Addr) net.IP {
+	switch addr := addr.(type) {
+	case *net.UDPAddr:
+		return addr.IP
+	case *net.TCPAddr:
+		return addr.IP
+	}
+
+	return nil
 }
