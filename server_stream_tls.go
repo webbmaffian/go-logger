@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"time"
@@ -84,7 +85,7 @@ func (opt ServerTLS) listen(s *server) (err error) {
 		}
 
 		go func() {
-			if err := s.handleTLSRequest(conn.(*tls.Conn)); err != nil {
+			if err := s.handleTLSRequest(conn.(*tls.Conn)); err != nil && err != io.EOF {
 				if s.opt.Logger.core != nil {
 					s.opt.Logger.Notice(err.Error())
 				}
@@ -98,14 +99,10 @@ func (opt ServerTLS) listen(s *server) (err error) {
 func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 	if err = conn.HandshakeContext(s.ctx); err != nil {
 		if s.opt.Logger.core != nil {
-			s.opt.Logger.Debug("failed TLS handshake from IP %s", addrToIp(conn.RemoteAddr()).String(), Meta("_", err.Error()))
+			s.opt.Logger.Debug("failed TLS handshake", addrToIp(conn.RemoteAddr()).String(), Meta("_", err.Error()))
 		}
 
 		return
-	}
-
-	if s.opt.Logger.core != nil {
-		s.opt.Logger.Debug("successful TLS handshake from IP %s", addrToIp(conn.RemoteAddr()).String(), Meta("_", err.Error()))
 	}
 
 	// Handshake done - we won't write any more data to TCP
@@ -120,6 +117,10 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 	}
 
 	cert := state.PeerCertificates[0]
+
+	if s.opt.Logger.core != nil {
+		s.opt.Logger.Debug("successful TLS handshake with certificate %s", bigIntToUuid(cert.SerialNumber), addrToIp(conn.RemoteAddr()).String())
+	}
 
 	return s.handleRequest(conn, cert.SubjectKeyId)
 }

@@ -13,8 +13,14 @@ import (
 var ErrForbiddenBucket = errors.New("forbidden bucket")
 
 func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error) {
+	var counter int32
+	start := s.opt.TimeNow()
+
 	if s.opt.Logger.core != nil {
-		s.opt.Logger.Info("opened TCP connection with IP %s", addrToIp(conn.RemoteAddr()).String())
+		s.opt.Logger.Info("opened TCP connection", addrToIp(conn.RemoteAddr()).String())
+		defer func() {
+			s.opt.Logger.Info("closed TCP connection", addrToIp(conn.RemoteAddr()).String(), Metric("entriesReceived", counter), Metric("openSeconds", int32(s.opt.TimeNow().Sub(start).Seconds())))
+		}()
 	}
 
 	defer conn.Close()
@@ -26,7 +32,6 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 	defer s.entryPool.Release(entry)
 
 	var buf [MaxEntrySize]byte
-	var counter int32
 
 	for {
 		if err == io.EOF {
@@ -59,6 +64,10 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 		}
 
 		if !validBucketId(buf[2:6], validBucketIds) {
+			if s.opt.Logger.core != nil {
+				s.opt.Logger.Notice("tried to insert into forbidden bucket %d", binary.BigEndian.Uint32(buf[2:6]), addrToIp(conn.RemoteAddr()).String())
+			}
+
 			return ErrForbiddenBucket
 		}
 
@@ -71,10 +80,6 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 		}
 
 		counter++
-	}
-
-	if s.opt.Logger.core != nil {
-		s.opt.Logger.Info("closed TCP connection with IP %s", addrToIp(conn.RemoteAddr()).String(), Metric("entriesReceived", counter))
 	}
 
 	return

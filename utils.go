@@ -5,11 +5,14 @@ import (
 	"errors"
 	"io"
 	"log"
+	"math/big"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/google/uuid"
 )
 
 var regexErrorString = regexp.MustCompile(`('[^']+')|([0-9]+\.?[0-9]*)`)
@@ -181,4 +184,9 @@ func addrToIp(addr net.Addr) net.IP {
 	}
 
 	return nil
+}
+
+func bigIntToUuid(i *big.Int) (id uuid.UUID) {
+	i.FillBytes(id[:])
+	return
 }
