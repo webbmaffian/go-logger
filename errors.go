@@ -7,4 +7,5 @@ var (
 	ErrInvalidSerialNumber = errors.New("invalid serial number")
 	ErrInvalidSubjectKeyId = errors.New("invalid subject key ID")
 	ErrFull                = errors.New("full")
+	ErrEmpty               = errors.New("empty")
 )

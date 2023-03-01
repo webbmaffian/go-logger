@@ -569,16 +569,24 @@ func (e *Entry) AppendTag(tag string) (err error) {
 		return ErrFull
 	}
 
+	if tag == "" {
+		return ErrEmpty
+	}
+
 	e.Tags[e.TagsCount] = truncate(tag, MaxTagSize)
 	e.TagsCount++
 
 	return
 }
 
-func (e *Entry) PrependTag(tag string) {
+func (e *Entry) PrependTag(tag string) (err error) {
 	if e.TagsCount == 0 {
 		e.AppendTag(tag)
 		return
+	}
+
+	if tag == "" {
+		return ErrEmpty
 	}
 
 	copy(e.Tags[1:], e.Tags[:e.TagsCount])
@@ -594,6 +602,10 @@ func (e *Entry) AppendMeta(key string, value string) (err error) {
 		return ErrFull
 	}
 
+	if key == "" || value == "" {
+		return ErrEmpty
+	}
+
 	e.MetaKeys[e.MetaCount] = truncate(key, MaxMetaKeySize)
 	e.MetaValues[e.MetaCount] = truncate(value, MaxMetaValueSize)
 	e.MetaCount++
@@ -606,6 +618,10 @@ func (e *Entry) AppendMetric(key string, value int32) (err error) {
 		return ErrFull
 	}
 
+	if key == "" {
+		return ErrEmpty
+	}
+
 	e.MetricKeys[e.MetricCount] = truncate(key, MaxMetaKeySize)
 	e.MetricValues[e.MetricCount] = value
 	e.MetricCount++
@@ -613,6 +629,12 @@ func (e *Entry) AppendMetric(key string, value int32) (err error) {
 	return
 }
 
-func (e *Entry) SetMessage(msg string) {
+func (e *Entry) SetMessage(msg string) (err error) {
+	if msg == "" {
+		return ErrEmpty
+	}
+
 	e.Message = truncate(msg, MaxMessageSize)
+
+	return
 }
