@@ -595,6 +595,8 @@ func (e *Entry) PrependTag(tag string) (err error) {
 	if e.TagsCount < MaxTagsCount {
 		e.TagsCount++
 	}
+
+	return
 }
 
 func (e *Entry) AppendMeta(key string, value string) (err error) {
