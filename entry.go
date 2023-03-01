@@ -101,6 +101,8 @@ type Entry struct {
 	StackTraceCount uint8
 }
 
+var nilId xid.ID
+
 func (e Entry) String() string {
 	return e.Message
 }
@@ -110,6 +112,7 @@ func (e Entry) Error() string {
 }
 
 func (e *Entry) Reset() {
+	e.Id = nilId
 	e.Level = _3_Message
 	e.TagsCount = 0
 	e.MetricCount = 0
