@@ -56,6 +56,7 @@ const (
 	MaxEntrySize          = 65_507 // Should fit in a UDP packet
 	MaxMessageSize        = math.MaxUint8
 	MaxMetaKeySize        = math.MaxUint8
+	MaxTagSize            = math.MaxUint8
 	MaxMetaValueSize      = math.MaxUint16
 	MaxStackTracePathSize = math.MaxUint8
 	MaxMetaCount          = 32
@@ -118,6 +119,8 @@ func (e *Entry) Reset() {
 	e.MetricCount = 0
 	e.MetaCount = 0
 	e.StackTraceCount = 0
+	e.TtlEntry = 0
+	e.TtlMeta = 0
 }
 
 func (e *Entry) Encode(b []byte) (s int) {
