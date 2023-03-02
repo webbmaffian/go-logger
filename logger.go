@@ -63,6 +63,13 @@ func (l *Logger) Logger(args ...any) Logger {
 	}
 }
 
+func (l *Logger) Release() {
+	if l.baseEntry != nil {
+		l.releaseEntry(l.baseEntry)
+		l.baseEntry = nil
+	}
+}
+
 // System is unusable - a panic condition
 func (l *Logger) Emerg(message string, args ...any) {
 	l.log(EMERG, message, args)
@@ -182,4 +189,8 @@ func (l *Logger) acquireEntry(sev Severity) *Entry {
 	e.TtlMeta = l.core.opt.DefaultMetaTTL
 
 	return e
+}
+
+func (l *Logger) releaseEntry(e *Entry) {
+	l.core.entryPool.Release(e)
 }
