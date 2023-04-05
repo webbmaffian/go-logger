@@ -25,9 +25,6 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 
 	defer conn.Close()
 
-	entryCtx := s.entryProc.AcquireCtx()
-	defer s.entryProc.ReleaseCtx(entryCtx)
-
 	entry := s.entryPool.Acquire()
 	defer s.entryPool.Release(entry)
 
@@ -75,7 +72,7 @@ func (s *server) handleRequest(conn net.Conn, validBucketIds []byte) (err error)
 			break
 		}
 
-		if err = s.entryProc.ProcessEntry(entry, entryCtx); err != nil {
+		if err = s.entryProc.ProcessEntry(s.ctx, entry); err != nil {
 			break
 		}
 

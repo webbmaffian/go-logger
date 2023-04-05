@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"time"
-	"unsafe"
 )
 
 type client struct {
@@ -70,13 +69,7 @@ func NewClient(ctx context.Context, connector Connector, entryPool EntryPool, op
 	return c
 }
 
-func (c *client) AcquireCtx() unsafe.Pointer {
-	return nil
-}
-
-func (c *client) ReleaseCtx(unsafe.Pointer) {}
-
-func (c *client) ProcessEntry(e *Entry, _ unsafe.Pointer) (err error) {
+func (c *client) ProcessEntry(_ context.Context, e *Entry) (err error) {
 	c.ch <- e
 	return
 }

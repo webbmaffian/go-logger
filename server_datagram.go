@@ -10,9 +10,6 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 	defer conn.Close()
 	// log.Println("server: incoming connection")
 
-	entryCtx := s.entryProc.AcquireCtx()
-	defer s.entryProc.ReleaseCtx(entryCtx)
-
 	entry := s.entryPool.Acquire()
 	defer s.entryPool.Release(entry)
 
@@ -47,7 +44,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 			break
 		}
 
-		if err = s.entryProc.ProcessEntry(entry, entryCtx); err != nil {
+		if err = s.entryProc.ProcessEntry(s.ctx, entry); err != nil {
 			break
 		}
 	}

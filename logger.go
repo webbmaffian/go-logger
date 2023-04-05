@@ -114,7 +114,7 @@ func (l *Logger) LogError(err error) (entryId xid.ID) {
 	err = l.NewError(err)
 
 	if e, ok := err.(*Entry); ok {
-		l.core.entryProc.ProcessEntry(e, nil)
+		l.core.entryProc.ProcessEntry(l.core.ctx, e)
 		entryId = e.Id
 	}
 
@@ -165,7 +165,7 @@ func (l *Logger) log(severity Severity, message string, args []any) {
 		e.addStackTrace(4)
 	}
 
-	l.core.entryProc.ProcessEntry(e, nil)
+	l.core.entryProc.ProcessEntry(l.core.ctx, e)
 }
 
 func (l *Logger) newEntry(severity Severity, message string, args []any) *Entry {

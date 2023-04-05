@@ -1,9 +1,7 @@
 package logger
 
-import "unsafe"
+import "context"
 
 type EntryProcessor interface {
-	ProcessEntry(entry *Entry, entryCtx unsafe.Pointer) (err error)
-	AcquireCtx() unsafe.Pointer
-	ReleaseCtx(p unsafe.Pointer)
+	ProcessEntry(ctx context.Context, entry *Entry) (err error)
 }
