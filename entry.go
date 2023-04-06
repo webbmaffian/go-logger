@@ -1,9 +1,11 @@
 package logger
 
 import (
+	"context"
 	"encoding/binary"
 	"math"
 	"runtime"
+	"time"
 
 	"github.com/rs/xid"
 )
@@ -90,6 +92,7 @@ type Entry struct {
 	Tags            [MaxTagsCount]string
 	Message         string
 	Id              xid.ID
+	logger          *Logger
 	BucketId        uint32
 	TtlEntry        uint16
 	TtlMeta         uint16
@@ -416,91 +419,6 @@ func toString(b []byte, unsafe bool) string {
 	return string(b)
 }
 
-// func (e *Entry) DecodeWithoutCopy(b []byte) (err error) {
-// 	if len(b) < 2 {
-// 		return ErrTooShort
-// 	}
-
-// 	var s uint16
-// 	total := binary.BigEndian.Uint16(b[s:])
-// 	s += 2
-
-// 	if uint16(len(b)) != total {
-// 		return ErrCorruptEntry
-// 	}
-
-// 	for e.Level = 0; e.Level <= _7_Meta; e.Level++ {
-// 		switch e.Level {
-
-// 		case _0_BucketId:
-// 			e.BucketId = binary.BigEndian.Uint32(b[s:])
-// 			s += 4
-
-// 		case _1_EntryId:
-// 			if e.Id, err = xid.FromBytes(b[s : s+12]); err != nil {
-// 				return
-// 			}
-
-// 			s += 12
-
-// 		case _2_Severity:
-// 			e.Severity = Severity(b[12])
-// 			s++
-
-// 		case _3_Message:
-// 			size := uint16(b[s])
-// 			s++
-// 			e.Message = bytesToString(b[s : s+size])
-// 			s += size
-
-// 		case _4_Category:
-// 			size := uint16(b[s])
-// 			s++
-// 			e.Category = bytesToString(b[s : s+size])
-// 			s += size
-
-// 		case _5_ProcId:
-// 			size := uint16(b[s])
-// 			s++
-// 			e.ProcId = bytesToString(b[s : s+size])
-// 			s += size
-
-// 		case _6_Tags:
-// 			e.TagsCount = b[s]
-// 			s++
-// 			var i uint8
-// 			for i = 0; i < e.TagsCount; i++ {
-// 				size := uint16(b[s])
-// 				s++
-// 				e.Tags[i] = bytesToString(b[s : s+size])
-// 				s += size
-// 			}
-
-// 		case _7_Meta:
-// 			e.MetaCount = b[s]
-// 			s++
-// 			var i uint8
-// 			for i = 0; i < e.MetaCount; i++ {
-// 				size := uint16(b[s])
-// 				s++
-// 				e.MetaKeys[i] = bytesToString(b[s : s+size])
-// 				s += size
-
-// 				size = binary.BigEndian.Uint16(b[s : s+2])
-// 				s += 2
-// 				e.MetaValues[i] = bytesToString(b[s : s+size])
-// 				s += size
-// 			}
-// 		}
-
-// 		if s >= total {
-// 			break
-// 		}
-// 	}
-
-// 	return
-// }
-
 // Implements encoding.BinaryMarshaler
 func (e Entry) MarshalBinary() ([]byte, error) {
 	var b [MaxEntrySize]byte
@@ -564,79 +482,87 @@ func (dst *Entry) Append(src *Entry) {
 	}
 }
 
-func (e *Entry) AppendTag(tag string) (err error) {
-	if e.TagsCount >= MaxTagsCount {
-		return ErrFull
-	}
-
-	if tag == "" {
-		return ErrEmpty
-	}
-
-	e.Tags[e.TagsCount] = truncate(tag, MaxTagSize)
-	e.TagsCount++
-
-	return
+func (e *Entry) Time(t time.Time) *Entry {
+	e.Id = xid.NewWithTime(t)
+	return e
 }
 
-func (e *Entry) PrependTag(tag string) (err error) {
-	if e.TagsCount == 0 {
-		e.AppendTag(tag)
-		return
-	}
+func (e *Entry) Category(categoryId uint8) *Entry {
+	e.CategoryId = categoryId
+	return e
+}
 
-	if tag == "" {
-		return ErrEmpty
-	}
+func (e *Entry) Tag(tags ...any) *Entry {
+	for i := range tags {
+		if e.TagsCount >= MaxTagsCount {
+			break
+		}
 
-	copy(e.Tags[1:], e.Tags[:e.TagsCount])
-	e.Tags[0] = truncate(tag, MaxTagSize)
+		if tags[i] == "" {
+			continue
+		}
 
-	if e.TagsCount < MaxTagsCount {
+		e.Tags[e.TagsCount] = truncate(stringify(tags[i]), MaxTagSize)
 		e.TagsCount++
 	}
 
-	return
+	return e
 }
 
-func (e *Entry) AppendMeta(key string, value string) (err error) {
+func (e *Entry) Meta(key string, value any) *Entry {
 	if e.MetaCount >= MaxMetaCount {
-		return ErrFull
+		return e
 	}
 
 	if key == "" || value == "" {
-		return ErrEmpty
+		return e
 	}
 
 	e.MetaKeys[e.MetaCount] = truncate(key, MaxMetaKeySize)
-	e.MetaValues[e.MetaCount] = truncate(value, MaxMetaValueSize)
+	e.MetaValues[e.MetaCount] = truncate(stringify(value), MaxMetaValueSize)
 	e.MetaCount++
 
-	return
+	return e
 }
 
-func (e *Entry) AppendMetric(key string, value int32) (err error) {
+func (e *Entry) Metric(key string, value int32) *Entry {
 	if e.MetricCount >= MaxMetricCount {
-		return ErrFull
+		return e
 	}
 
 	if key == "" {
-		return ErrEmpty
+		return e
 	}
 
 	e.MetricKeys[e.MetricCount] = truncate(key, MaxMetaKeySize)
 	e.MetricValues[e.MetricCount] = value
 	e.MetricCount++
 
-	return
+	return e
 }
 
-func (e *Entry) SetMessage(msg string) (err error) {
-	if msg == "" {
-		return ErrEmpty
-	}
+func (e *Entry) Trace() *Entry {
+	e.addStackTrace(1)
+	return e
+}
 
-	e.Message = truncate(msg, MaxMessageSize)
+func (e *Entry) TTL(ttl int) *Entry {
+	e.TtlEntry = uint16(ttl)
+	return e
+}
+
+func (e *Entry) MetaTTL(ttl int) *Entry {
+	e.TtlMeta = uint16(ttl)
+	return e
+}
+
+func (e *Entry) Send() (id xid.ID) {
+	id = e.Id
+
+	if e.logger.pool != nil {
+		// TODO: Append slices from logger
+		e.logger.pool.EntryProcessor.ProcessEntry(context.Background(), e)
+	}
 
 	return
 }
