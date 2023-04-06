@@ -102,6 +102,8 @@ func (s *server) handleTLSRequest(conn *tls.Conn) (err error) {
 		// 	s.opt.Logger.Debug("failed TLS handshake", addrToIp(conn.RemoteAddr()).String(), Meta("_", err.Error()))
 		// }
 
+		log.Println("server: failed handshake:", err)
+
 		return
 	}
 

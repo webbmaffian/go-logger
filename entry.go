@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"encoding"
 	"encoding/binary"
 	"math"
 	"runtime"
@@ -82,6 +83,14 @@ const (
 	_End_Level
 )
 
+// Entry implements these interfaces
+var (
+	_ stringer                   = Entry{}
+	_ error                      = Entry{}
+	_ encoding.BinaryMarshaler   = Entry{}
+	_ encoding.BinaryUnmarshaler = (*Entry)(nil)
+)
+
 type Entry struct {
 	metaKeys        [MaxMetaCount]string
 	metaValues      [MaxMetaCount]string
@@ -107,14 +116,17 @@ type Entry struct {
 
 var nilId xid.ID
 
+// Implements stringer interface
 func (e Entry) String() string {
 	return e.message
 }
 
+// Implements error interface
 func (e Entry) Error() string {
 	return e.message
 }
 
+// Reset the entry as if it was fresh from the pool
 func (e *Entry) Reset() {
 	e.id = nilId
 	e.logger = nil
@@ -127,6 +139,8 @@ func (e *Entry) Reset() {
 	e.ttlMeta = 0
 }
 
+// Encodes the entry to a binary representation into b. If b isn't
+// large enought we will panic. Returns number of bytes written.
 func (e *Entry) Encode(b []byte) (s int) {
 	var i uint8
 	var l level
@@ -244,6 +258,8 @@ func (e *Entry) Encode(b []byte) (s int) {
 	return
 }
 
+// Decodes a binary representation into entry, with an option to reference to the
+// byte slice directly instead of doing any copy.
 func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 	e.Reset()
 
@@ -408,36 +424,43 @@ func (e *Entry) UnmarshalBinary(b []byte) error {
 	return e.Decode(b)
 }
 
+// Sets the bucket ID of the entry. Chainable.
 func (e *Entry) Bucket(bucketId uint32) *Entry {
 	e.bucketId = bucketId
 	return e
 }
 
+// Sets the ID of the entry. Chainable.
 func (e *Entry) Id(id xid.ID) *Entry {
 	e.id = id
 	return e
 }
 
+// Sets the timestamp of the entry by generating a new ID based on the timestamp. Chainable.
 func (e *Entry) Time(t time.Time) *Entry {
 	e.id = xid.NewWithTime(t)
 	return e
 }
 
+// Sets the message of the entry. Chainable.
 func (e *Entry) Msg(msg string) *Entry {
 	e.message = msg
 	return e
 }
 
+// Sets the severity of the entry. Chainable.
 func (e *Entry) Sev(severity Severity) *Entry {
 	e.severity = severity
 	return e
 }
 
+// Sets the category ID of the entry. Chainable.
 func (e *Entry) Cat(categoryId uint8) *Entry {
 	e.categoryId = categoryId
 	return e
 }
 
+// Appends tags to the entry. Stops if the entry's number of tags exceeds `MaxTagsCount`. Chainable.
 func (e *Entry) Tag(tags ...any) *Entry {
 	for i := range tags {
 		if e.tagsCount >= MaxTagsCount {
@@ -455,6 +478,7 @@ func (e *Entry) Tag(tags ...any) *Entry {
 	return e
 }
 
+// Prepends tags to the entry and removes any tags that overflow `MaxTagsCount`. Chainable.
 func (e *Entry) PrependTag(tag ...any) *Entry {
 	if e.tagsCount == 0 || len(tag) >= MaxTagsCount {
 		e.tagsCount = 0
@@ -512,6 +536,8 @@ func (e *Entry) Metric(key string, value int32) *Entry {
 	return e
 }
 
+// Sets the stack trace to the current line of code. This operation is expensive compared
+// to any other method. You can optionally skip levels. Chainable.
 func (e *Entry) Trace(skipLevels ...int) *Entry {
 	if skipLevels != nil {
 		e.addStackTrace(1 + skipLevels[0])
@@ -522,6 +548,8 @@ func (e *Entry) Trace(skipLevels ...int) *Entry {
 	return e
 }
 
+// Appens to the stack trace manually - this should most likely not be used unless you want to
+// load an entry from an external source, e.g. database. Chainable.
 func (e *Entry) ManualTrace(path string, line uint16) *Entry {
 	if e.stackTraceCount < MaxStackTraceCount {
 		e.stackTracePaths[e.stackTraceCount] = path
@@ -532,16 +560,17 @@ func (e *Entry) ManualTrace(path string, line uint16) *Entry {
 	return e
 }
 
-func (e *Entry) TTL(ttl uint16) *Entry {
-	e.ttlEntry = ttl
+func (e *Entry) TTL(days uint16) *Entry {
+	e.ttlEntry = days
 	return e
 }
 
-func (e *Entry) MetaTTL(ttl uint16) *Entry {
-	e.ttlMeta = ttl
+func (e *Entry) MetaTTL(days uint16) *Entry {
+	e.ttlMeta = days
 	return e
 }
 
+// Sends the entry to the log and returns its unique ID.
 func (e *Entry) Send() (id xid.ID) {
 	id = e.id
 
@@ -582,10 +611,12 @@ func (e *Entry) Send() (id xid.ID) {
 	return
 }
 
+// Returns a readable interface of the entry.
 func (e *Entry) Read() entryReader {
 	return entryReader{e}
 }
 
+// Releases the entry back to the pool. Any usage of the entry afterwards might panic.
 func (e *Entry) Drop() {
 	if e.logger != nil {
 		e.logger.pool.EntryPool.Release(e)
