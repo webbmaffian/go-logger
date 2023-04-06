@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger/auth"
 )
 
@@ -16,15 +17,11 @@ type ClientTLS struct {
 	PrivateKey  auth.PrivateKey
 	Certificate auth.Certificate
 	RootCa      auth.Certificate
-	TimeNow     func() time.Time
+	Clock       fastime.Fastime
 	dialer      tls.Dialer
 }
 
 func (opt *ClientTLS) connect(ctx context.Context) (conn net.Conn, err error) {
-	if opt.TimeNow == nil {
-		opt.TimeNow = time.Now
-	}
-
 	if opt.dialer.Config == nil {
 		cert := opt.Certificate.TLS(opt.PrivateKey)
 		opt.dialer = tls.Dialer{
@@ -53,7 +50,7 @@ func (opt *ClientTLS) connect(ctx context.Context) (conn net.Conn, err error) {
 }
 
 func (opt *ClientTLS) write(ctx context.Context, conn net.Conn, b []byte) (err error) {
-	conn.SetWriteDeadline(opt.TimeNow().Add(time.Second * 5))
+	conn.SetWriteDeadline(opt.Clock.Now().Add(time.Second * 5))
 	_, err = conn.Write(b)
 	return
 }

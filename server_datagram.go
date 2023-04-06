@@ -23,7 +23,7 @@ func (s *server) handleDatagram(conn net.PacketConn) (err error) {
 
 		// log.Println("server: waiting for message")
 
-		conn.SetReadDeadline(s.opt.TimeNow().Add(time.Second))
+		conn.SetReadDeadline(s.opt.Clock.Now().Add(time.Second))
 		n, _, err = conn.ReadFrom(buf[:])
 
 		if err != nil {

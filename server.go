@@ -3,7 +3,8 @@ package logger
 import (
 	"context"
 	"net"
-	"time"
+
+	"github.com/kpango/fastime"
 )
 
 func NewServer(ctx context.Context, entryProc EntryProcessor, entryPool EntryPool, options ...ServerOptions) Server {
@@ -11,10 +12,6 @@ func NewServer(ctx context.Context, entryProc EntryProcessor, entryPool EntryPoo
 
 	if options != nil {
 		opt = options[0]
-	}
-
-	if opt.TimeNow == nil {
-		opt.TimeNow = time.Now
 	}
 
 	return &server{
@@ -34,9 +31,9 @@ type Listener interface {
 }
 
 type ServerOptions struct {
-	TimeNow func() time.Time
-	NoCopy  bool
-	Logger  Logger
+	Clock  fastime.Fastime
+	Logger *Logger
+	NoCopy bool
 }
 
 type server struct {
