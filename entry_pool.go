@@ -30,6 +30,6 @@ func (q *entryPool) Acquire() *Entry {
 }
 
 func (q *entryPool) Release(e *Entry) {
-	e.reset()
+	e.Reset()
 	q.pool.Put(e)
 }

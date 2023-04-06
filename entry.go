@@ -115,7 +115,7 @@ func (e Entry) Error() string {
 	return e.message
 }
 
-func (e *Entry) reset() {
+func (e *Entry) Reset() {
 	e.id = nilId
 	e.logger = nil
 	e.level = _3_Message
@@ -245,7 +245,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 }
 
 func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
-	e.reset()
+	e.Reset()
 
 	var unsafe bool
 
@@ -517,6 +517,16 @@ func (e *Entry) Trace(skipLevels ...int) *Entry {
 		e.addStackTrace(1 + skipLevels[0])
 	} else {
 		e.addStackTrace(1)
+	}
+
+	return e
+}
+
+func (e *Entry) ManualTrace(path string, line uint16) *Entry {
+	if e.stackTraceCount < MaxStackTraceCount {
+		e.stackTracePaths[e.stackTraceCount] = path
+		e.stackTraceLines[e.stackTraceCount] = line
+		e.stackTraceCount++
 	}
 
 	return e

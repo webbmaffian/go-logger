@@ -27,7 +27,7 @@ func (l *Logger) Reset() {
 	l.categoryId = 0
 }
 
-func (l *Logger) Release() {
+func (l *Logger) Drop() {
 	l.pool.Release(l)
 }
 
