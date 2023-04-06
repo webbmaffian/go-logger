@@ -1,34 +1,23 @@
 package logger
 
 import (
-	"context"
 	"testing"
 
 	"github.com/rs/xid"
 )
 
-func BenchmarkParseArgs(b *testing.B) {
-	var e Entry
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		e.parseArgs([]any{Meta("foo", "bar")})
-		e.MetaCount = 0
-	}
-}
-
 func BenchmarkEntryEncode(b *testing.B) {
 	var buf [1024]byte
 
 	e := Entry{
-		Id:         xid.New(),
-		Message:    "lorem ipsum dolor sit amet",
-		Tags:       [8]string{"foo", "bar", "baz"},
-		TagsCount:  3,
-		MetaKeys:   [32]string{"foo", "bar", "baz"},
-		MetaValues: [32]string{"foo", "bar", "baz"},
-		MetaCount:  3,
-		Level:      _8_Stack_trace,
+		id:         xid.New(),
+		message:    "lorem ipsum dolor sit amet",
+		tags:       [8]string{"foo", "bar", "baz"},
+		tagsCount:  3,
+		metaKeys:   [32]string{"foo", "bar", "baz"},
+		metaValues: [32]string{"foo", "bar", "baz"},
+		metaCount:  3,
+		level:      _8_Stack_trace,
 	}
 
 	b.ResetTimer()
@@ -42,14 +31,14 @@ func BenchmarkEntryDecode(b *testing.B) {
 	var buf [1024]byte
 
 	e := Entry{
-		Id:         xid.New(),
-		Message:    "lorem ipsum dolor sit amet",
-		Tags:       [8]string{"foo", "bar", "baz"},
-		TagsCount:  3,
-		MetaKeys:   [32]string{"foo", "bar", "baz"},
-		MetaValues: [32]string{"foo", "bar", "baz"},
-		MetaCount:  3,
-		Level:      _8_Stack_trace,
+		id:         xid.New(),
+		message:    "lorem ipsum dolor sit amet",
+		tags:       [8]string{"foo", "bar", "baz"},
+		tagsCount:  3,
+		metaKeys:   [32]string{"foo", "bar", "baz"},
+		metaValues: [32]string{"foo", "bar", "baz"},
+		metaCount:  3,
+		level:      _8_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])
@@ -69,19 +58,13 @@ func BenchmarkEntryDecode(b *testing.B) {
 	})
 }
 
-func BenchmarkXidGenerate(b *testing.B) {
-	f := FastTimeNow(context.Background())
+func BenchmarkEntryXID(b *testing.B) {
+	var e Entry
+
 	b.ResetTimer()
 
-	b.Run("Standard", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_ = xid.New()
-		}
-	})
-
-	b.Run("WithFastTime", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_ = xid.NewWithTime(f())
-		}
-	})
+	for i := 0; i < b.N; i++ {
+		var id xid.ID
+		e.Id(id)
+	}
 }

@@ -18,15 +18,15 @@ import (
 var regexErrorString = regexp.MustCompile(`('[^']+')|([0-9]+\.?[0-9]*)`)
 
 func parseErrorString(e *Entry, str string) {
-	e.TagsCount = 0
+	e.tagsCount = 0
 
-	e.Message = truncate(regexErrorString.ReplaceAllStringFunc(str, func(s string) string {
-		if len(s) > 32 || e.TagsCount >= 8 {
+	e.message = truncate(regexErrorString.ReplaceAllStringFunc(str, func(s string) string {
+		if len(s) > 32 || e.tagsCount >= 8 {
 			return s
 		}
 
-		e.Tags[e.TagsCount] = strings.Trim(s, "'. ")
-		e.TagsCount++
+		e.tags[e.tagsCount] = strings.Trim(s, "'. ")
+		e.tagsCount++
 
 		return "%s"
 	}), MaxMessageSize)

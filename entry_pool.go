@@ -9,7 +9,7 @@ func NewEntryPool() EntryPool {
 		pool: sync.Pool{
 			New: func() any {
 				return &Entry{
-					Level: _3_Message,
+					level: _3_Message,
 				}
 			},
 		},
@@ -30,6 +30,6 @@ func (q *entryPool) Acquire() *Entry {
 }
 
 func (q *entryPool) Release(e *Entry) {
-	e.Reset()
+	e.reset()
 	q.pool.Put(e)
 }

@@ -83,47 +83,48 @@ const (
 )
 
 type Entry struct {
-	MetaKeys        [MaxMetaCount]string
-	MetaValues      [MaxMetaCount]string
-	MetricKeys      [MaxMetricCount]string
-	MetricValues    [MaxMetricCount]int32
-	StackTracePaths [MaxStackTraceCount]string
-	StackTraceLines [MaxStackTraceCount]uint16
-	Tags            [MaxTagsCount]string
-	Message         string
-	Id              xid.ID
+	metaKeys        [MaxMetaCount]string
+	metaValues      [MaxMetaCount]string
+	metricKeys      [MaxMetricCount]string
+	metricValues    [MaxMetricCount]int32
+	stackTracePaths [MaxStackTraceCount]string
+	stackTraceLines [MaxStackTraceCount]uint16
+	tags            [MaxTagsCount]string
+	message         string
+	id              xid.ID
 	logger          *Logger
-	BucketId        uint32
-	TtlEntry        uint16
-	TtlMeta         uint16
-	Severity        Severity
-	Level           level
-	CategoryId      uint8
-	TagsCount       uint8
-	MetaCount       uint8
-	MetricCount     uint8
-	StackTraceCount uint8
+	bucketId        uint32
+	ttlEntry        uint16
+	ttlMeta         uint16
+	severity        Severity
+	level           level
+	categoryId      uint8
+	tagsCount       uint8
+	metaCount       uint8
+	metricCount     uint8
+	stackTraceCount uint8
 }
 
 var nilId xid.ID
 
 func (e Entry) String() string {
-	return e.Message
+	return e.message
 }
 
 func (e Entry) Error() string {
-	return e.Message
+	return e.message
 }
 
-func (e *Entry) Reset() {
-	e.Id = nilId
-	e.Level = _3_Message
-	e.TagsCount = 0
-	e.MetricCount = 0
-	e.MetaCount = 0
-	e.StackTraceCount = 0
-	e.TtlEntry = 0
-	e.TtlMeta = 0
+func (e *Entry) reset() {
+	e.id = nilId
+	e.logger = nil
+	e.level = _3_Message
+	e.tagsCount = 0
+	e.metricCount = 0
+	e.metaCount = 0
+	e.stackTraceCount = 0
+	e.ttlEntry = 0
+	e.ttlMeta = 0
 }
 
 func (e *Entry) Encode(b []byte) (s int) {
@@ -131,44 +132,44 @@ func (e *Entry) Encode(b []byte) (s int) {
 	var l level
 	s += 2
 
-	for l = 0; l <= e.Level; l++ {
+	for l = 0; l <= e.level; l++ {
 		switch l {
 
 		case _0_BucketId:
-			binary.BigEndian.PutUint32(b[s:], e.BucketId)
+			binary.BigEndian.PutUint32(b[s:], e.bucketId)
 			s += 4
 
 		case _1_EntryId:
-			s += copy(b[s:], e.Id[:])
+			s += copy(b[s:], e.id[:])
 
 		case _2_Severity:
-			b[s] = uint8(e.Severity)
+			b[s] = uint8(e.severity)
 			s++
 
 		case _3_Message:
-			b[s] = uint8(len(e.Message))
+			b[s] = uint8(len(e.message))
 			s++
-			s += copy(b[s:], e.Message)
+			s += copy(b[s:], e.message)
 
 		case _4_CategoryId:
-			b[s] = e.CategoryId
+			b[s] = e.categoryId
 			s++
 
 		case _5_Tags:
-			b[s] = e.TagsCount
+			b[s] = e.tagsCount
 			s++
-			for i = 0; i < e.TagsCount; i++ {
-				b[s] = uint8(len(e.Tags[i]))
+			for i = 0; i < e.tagsCount; i++ {
+				b[s] = uint8(len(e.tags[i]))
 				s++
-				s += copy(b[s:], e.Tags[i])
+				s += copy(b[s:], e.tags[i])
 			}
 
 		case _6_Metric:
 			pos := s
-			b[s] = e.MetricCount
+			b[s] = e.metricCount
 			s++
-			for i = 0; i < e.MetricCount; i++ {
-				keyLen := len(e.StackTracePaths[i])
+			for i = 0; i < e.metricCount; i++ {
+				keyLen := len(e.stackTracePaths[i])
 
 				if s+keyLen+5 > MaxEntrySize {
 					b[pos] = i
@@ -177,21 +178,21 @@ func (e *Entry) Encode(b []byte) (s int) {
 
 				b[s] = uint8(keyLen)
 				s++
-				s += copy(b[s:], e.MetricKeys[i])
-				b[s] = byte(e.MetricValues[i] >> 24)
-				b[s+1] = byte(e.MetricValues[i] >> 16)
-				b[s+2] = byte(e.MetricValues[i] >> 8)
-				b[s+3] = byte(e.MetricValues[i])
+				s += copy(b[s:], e.metricKeys[i])
+				b[s] = byte(e.metricValues[i] >> 24)
+				b[s+1] = byte(e.metricValues[i] >> 16)
+				b[s+2] = byte(e.metricValues[i] >> 8)
+				b[s+3] = byte(e.metricValues[i])
 				s += 4
 			}
 
 		case _7_Meta:
 			pos := s
-			b[s] = e.MetaCount
+			b[s] = e.metaCount
 			s++
-			for i = 0; i < e.MetaCount; i++ {
-				keyLen := len(e.MetaKeys[i])
-				valLen := len(e.MetaKeys[i])
+			for i = 0; i < e.metaCount; i++ {
+				keyLen := len(e.metaKeys[i])
+				valLen := len(e.metaKeys[i])
 
 				if s+keyLen+valLen+3 > MaxEntrySize {
 					b[pos] = i
@@ -200,20 +201,20 @@ func (e *Entry) Encode(b []byte) (s int) {
 
 				b[s] = uint8(keyLen)
 				s++
-				s += copy(b[s:], e.MetaKeys[i])
+				s += copy(b[s:], e.metaKeys[i])
 				size := uint16(valLen)
 				b[s] = byte(size >> 8)
 				b[s+1] = byte(size)
 				s += 2
-				s += copy(b[s:], e.MetaValues[i])
+				s += copy(b[s:], e.metaValues[i])
 			}
 
 		case _8_Stack_trace:
 			pos := s
-			b[s] = e.StackTraceCount
+			b[s] = e.stackTraceCount
 			s++
-			for i = 0; i < e.StackTraceCount; i++ {
-				pathLen := len(e.StackTracePaths[i])
+			for i = 0; i < e.stackTraceCount; i++ {
+				pathLen := len(e.stackTracePaths[i])
 
 				if s+pathLen+3 > MaxEntrySize {
 					b[pos] = i
@@ -222,18 +223,18 @@ func (e *Entry) Encode(b []byte) (s int) {
 
 				b[s] = uint8(pathLen)
 				s++
-				s += copy(b[s:], e.StackTracePaths[i])
-				b[s] = byte(e.StackTraceLines[i] >> 8)
-				b[s+1] = byte(e.StackTraceLines[i])
+				s += copy(b[s:], e.stackTracePaths[i])
+				b[s] = byte(e.stackTraceLines[i] >> 8)
+				b[s+1] = byte(e.stackTraceLines[i])
 				s += 2
 			}
 
 		case _9_TTL_Entry:
-			binary.BigEndian.PutUint16(b[s:], e.TtlEntry)
+			binary.BigEndian.PutUint16(b[s:], e.ttlEntry)
 			s += 2
 
 		case _10_TTL_Meta:
-			binary.BigEndian.PutUint16(b[s:], e.TtlMeta)
+			binary.BigEndian.PutUint16(b[s:], e.ttlMeta)
 			s += 2
 		}
 	}
@@ -244,7 +245,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 }
 
 func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
-	e.Reset()
+	e.reset()
 
 	var unsafe bool
 
@@ -264,95 +265,95 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 		return ErrCorruptEntry
 	}
 
-	for e.Level = 0; e.Level < _End_Level; e.Level++ {
-		switch e.Level {
+	for e.level = 0; e.level < _End_Level; e.level++ {
+		switch e.level {
 
 		case _0_BucketId:
-			e.BucketId = binary.BigEndian.Uint32(b[s:])
+			e.bucketId = binary.BigEndian.Uint32(b[s:])
 			s += 4
 
 		case _1_EntryId:
-			if e.Id, err = xid.FromBytes(b[s : s+12]); err != nil {
+			if e.id, err = xid.FromBytes(b[s : s+12]); err != nil {
 				return
 			}
 
 			s += 12
 
 		case _2_Severity:
-			e.Severity = Severity(b[s])
+			e.severity = Severity(b[s])
 			s++
 
 		case _3_Message:
 			size := uint16(b[s])
 			s++
-			e.Message = toString(b[s:s+size], unsafe)
+			e.message = toString(b[s:s+size], unsafe)
 			s += size
 
 		case _4_CategoryId:
-			e.CategoryId = b[s]
+			e.categoryId = b[s]
 			s++
 
 		case _5_Tags:
-			e.TagsCount = b[s]
+			e.tagsCount = b[s]
 			s++
 			var i uint8
-			for i = 0; i < e.TagsCount; i++ {
+			for i = 0; i < e.tagsCount; i++ {
 				size := uint16(b[s])
 				s++
-				e.Tags[i] = toString(b[s:s+size], unsafe)
+				e.tags[i] = toString(b[s:s+size], unsafe)
 				s += size
 			}
 
 		case _6_Metric:
-			e.MetricCount = b[s]
+			e.metricCount = b[s]
 			s++
 			var i uint8
-			for i = 0; i < e.MetricCount; i++ {
+			for i = 0; i < e.metricCount; i++ {
 				size := uint16(b[s])
 				s++
-				e.MetricKeys[i] = toString(b[s:s+size], unsafe)
+				e.metricKeys[i] = toString(b[s:s+size], unsafe)
 				s += size
 
-				e.MetricValues[i] = int32(binary.BigEndian.Uint32(b[s : s+4]))
+				e.metricValues[i] = int32(binary.BigEndian.Uint32(b[s : s+4]))
 				s += 4
 			}
 
 		case _7_Meta:
-			e.MetaCount = b[s]
+			e.metaCount = b[s]
 			s++
 			var i uint8
-			for i = 0; i < e.MetaCount; i++ {
+			for i = 0; i < e.metaCount; i++ {
 				size := uint16(b[s])
 				s++
-				e.MetaKeys[i] = toString(b[s:s+size], unsafe)
+				e.metaKeys[i] = toString(b[s:s+size], unsafe)
 				s += size
 
 				size = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
-				e.MetaValues[i] = toString(b[s:s+size], unsafe)
+				e.metaValues[i] = toString(b[s:s+size], unsafe)
 				s += size
 			}
 
 		case _8_Stack_trace:
-			e.StackTraceCount = b[s]
+			e.stackTraceCount = b[s]
 			s++
 			var i uint8
-			for i = 0; i < e.StackTraceCount; i++ {
+			for i = 0; i < e.stackTraceCount; i++ {
 				size := uint16(b[s])
 				s++
-				e.StackTracePaths[i] = toString(b[s:s+size], unsafe)
+				e.stackTracePaths[i] = toString(b[s:s+size], unsafe)
 				s += size
 
-				e.StackTraceLines[i] = binary.BigEndian.Uint16(b[s : s+2])
+				e.stackTraceLines[i] = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
 			}
 
 		case _9_TTL_Entry:
-			e.TtlEntry = binary.BigEndian.Uint16(b[s:])
+			e.ttlEntry = binary.BigEndian.Uint16(b[s:])
 			s += 2
 
 		case _10_TTL_Meta:
-			e.TtlMeta = binary.BigEndian.Uint16(b[s:])
+			e.ttlMeta = binary.BigEndian.Uint16(b[s:])
 			s += 2
 		}
 
@@ -364,30 +365,6 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 	return
 }
 
-type entryWriter interface {
-	writeEntry(e *Entry)
-}
-
-func (e *Entry) parseArgs(args []any) {
-	for i := range args {
-		switch v := args[i].(type) {
-
-		case entryWriter:
-			v.writeEntry(e)
-
-		case func(*Entry):
-			v(e)
-
-		default:
-			if e.TagsCount < 32 {
-				e.Tags[e.TagsCount] = truncate(stringify(v), math.MaxUint8)
-				e.TagsCount++
-				e.Level = max(e.Level, 5)
-			}
-		}
-	}
-}
-
 func (e *Entry) addStackTrace(skip int) {
 	var trace [16]uintptr
 	n := runtime.Callers(skip, trace[:])
@@ -397,13 +374,13 @@ func (e *Entry) addStackTrace(skip int) {
 	}
 
 	frames := runtime.CallersFrames(trace[:n])
-	e.StackTraceCount = uint8(n)
-	e.Level = _8_Stack_trace
+	e.stackTraceCount = uint8(n)
+	e.level = _8_Stack_trace
 
 	for i := 0; i < n; i++ {
 		frame, ok := frames.Next()
-		e.StackTracePaths[i] = frame.File
-		e.StackTraceLines[i] = uint16(frame.Line)
+		e.stackTracePaths[i] = frame.File
+		e.stackTraceLines[i] = uint16(frame.Line)
 
 		if !ok {
 			break
@@ -431,70 +408,39 @@ func (e *Entry) UnmarshalBinary(b []byte) error {
 	return e.Decode(b)
 }
 
-func (dst *Entry) Append(src *Entry) {
-	if dst.BucketId == 0 {
-		dst.BucketId = src.BucketId
-	}
-
-	if dst.CategoryId == 0 {
-		dst.CategoryId = src.CategoryId
-	}
-
-	if dst.TtlEntry == 0 {
-		dst.TtlEntry = src.TtlEntry
-	}
-
-	if dst.TtlMeta == 0 {
-		dst.TtlMeta = src.TtlMeta
-	}
-
-	if src.Level > dst.Level {
-		dst.Level = src.Level
-	}
-
-	for i := range src.Tags[:src.TagsCount] {
-		if dst.TagsCount >= MaxTagsCount {
-			break
-		}
-
-		dst.Tags[dst.TagsCount] = src.Tags[i]
-		dst.TagsCount++
-	}
-
-	for i := range src.MetaKeys[:src.MetaCount] {
-		if dst.MetaCount >= MaxMetaCount {
-			break
-		}
-
-		dst.MetaKeys[dst.MetaCount] = src.MetaKeys[i]
-		dst.MetaValues[dst.MetaCount] = src.MetaValues[i]
-		dst.MetaCount++
-	}
-
-	for i := range src.MetricKeys[:src.MetricCount] {
-		if dst.MetricCount >= MaxMetricCount {
-			break
-		}
-
-		dst.MetricKeys[dst.MetricCount] = src.MetricKeys[i]
-		dst.MetricValues[dst.MetricCount] = src.MetricValues[i]
-		dst.MetricCount++
-	}
-}
-
-func (e *Entry) Time(t time.Time) *Entry {
-	e.Id = xid.NewWithTime(t)
+func (e *Entry) Bucket(bucketId uint32) *Entry {
+	e.bucketId = bucketId
 	return e
 }
 
-func (e *Entry) Category(categoryId uint8) *Entry {
-	e.CategoryId = categoryId
+func (e *Entry) Id(id xid.ID) *Entry {
+	e.id = id
+	return e
+}
+
+func (e *Entry) Time(t time.Time) *Entry {
+	e.id = xid.NewWithTime(t)
+	return e
+}
+
+func (e *Entry) Msg(msg string) *Entry {
+	e.message = msg
+	return e
+}
+
+func (e *Entry) Sev(severity Severity) *Entry {
+	e.severity = severity
+	return e
+}
+
+func (e *Entry) Cat(categoryId uint8) *Entry {
+	e.categoryId = categoryId
 	return e
 }
 
 func (e *Entry) Tag(tags ...any) *Entry {
 	for i := range tags {
-		if e.TagsCount >= MaxTagsCount {
+		if e.tagsCount >= MaxTagsCount {
 			break
 		}
 
@@ -502,15 +448,40 @@ func (e *Entry) Tag(tags ...any) *Entry {
 			continue
 		}
 
-		e.Tags[e.TagsCount] = truncate(stringify(tags[i]), MaxTagSize)
-		e.TagsCount++
+		e.tags[e.tagsCount] = truncate(stringify(tags[i]), MaxTagSize)
+		e.tagsCount++
 	}
 
 	return e
 }
 
+func (e *Entry) PrependTag(tag ...any) *Entry {
+	if e.tagsCount == 0 || len(tag) >= MaxTagsCount {
+		e.tagsCount = 0
+		return e.Tag(tag...)
+	}
+
+	if tag != nil {
+		copy(e.tags[len(tag):], e.tags[:e.tagsCount])
+
+		for i := range tag {
+			e.tags[i] = truncate(stringify(tag[i]), MaxTagSize)
+
+			if e.tagsCount < MaxTagsCount {
+				e.tagsCount++
+			}
+		}
+	}
+
+	return e
+}
+
+func (e *Entry) MetaBlob(value any) *Entry {
+	return e.Meta("_", value)
+}
+
 func (e *Entry) Meta(key string, value any) *Entry {
-	if e.MetaCount >= MaxMetaCount {
+	if e.metaCount >= MaxMetaCount {
 		return e
 	}
 
@@ -518,15 +489,15 @@ func (e *Entry) Meta(key string, value any) *Entry {
 		return e
 	}
 
-	e.MetaKeys[e.MetaCount] = truncate(key, MaxMetaKeySize)
-	e.MetaValues[e.MetaCount] = truncate(stringify(value), MaxMetaValueSize)
-	e.MetaCount++
+	e.metaKeys[e.metaCount] = truncate(key, MaxMetaKeySize)
+	e.metaValues[e.metaCount] = truncate(stringify(value), MaxMetaValueSize)
+	e.metaCount++
 
 	return e
 }
 
 func (e *Entry) Metric(key string, value int32) *Entry {
-	if e.MetricCount >= MaxMetricCount {
+	if e.metricCount >= MaxMetricCount {
 		return e
 	}
 
@@ -534,35 +505,79 @@ func (e *Entry) Metric(key string, value int32) *Entry {
 		return e
 	}
 
-	e.MetricKeys[e.MetricCount] = truncate(key, MaxMetaKeySize)
-	e.MetricValues[e.MetricCount] = value
-	e.MetricCount++
+	e.metricKeys[e.metricCount] = truncate(key, MaxMetaKeySize)
+	e.metricValues[e.metricCount] = value
+	e.metricCount++
 
 	return e
 }
 
-func (e *Entry) Trace() *Entry {
-	e.addStackTrace(1)
+func (e *Entry) Trace(skipLevels ...int) *Entry {
+	if skipLevels != nil {
+		e.addStackTrace(1 + skipLevels[0])
+	} else {
+		e.addStackTrace(1)
+	}
+
 	return e
 }
 
-func (e *Entry) TTL(ttl int) *Entry {
-	e.TtlEntry = uint16(ttl)
+func (e *Entry) TTL(ttl uint16) *Entry {
+	e.ttlEntry = ttl
 	return e
 }
 
-func (e *Entry) MetaTTL(ttl int) *Entry {
-	e.TtlMeta = uint16(ttl)
+func (e *Entry) MetaTTL(ttl uint16) *Entry {
+	e.ttlMeta = ttl
 	return e
 }
 
 func (e *Entry) Send() (id xid.ID) {
-	id = e.Id
+	id = e.id
 
-	if e.logger.pool != nil {
-		// TODO: Append slices from logger
+	// Any tags, meta and metrics are appended from the logger in ths stage
+	if e.logger != nil {
+		for i := range e.logger.tags {
+			if e.tagsCount > MaxTagsCount {
+				break
+			}
+
+			e.tags[e.tagsCount] = e.logger.tags[i]
+			e.tagsCount++
+		}
+
+		for i := range e.logger.metaKeys {
+			if e.metaCount >= MaxMetaCount {
+				break
+			}
+
+			e.metaKeys[e.metaCount] = e.logger.metaKeys[i]
+			e.metaValues[e.metaCount] = e.logger.metaValues[i]
+			e.metaCount++
+		}
+
+		for i := range e.logger.metricKeys {
+			if e.metricCount >= MaxMetricCount {
+				break
+			}
+
+			e.metricKeys[e.metricCount] = e.logger.metricKeys[i]
+			e.metricValues[e.metricCount] = e.logger.metricValues[i]
+			e.metricCount++
+		}
+
 		e.logger.pool.EntryProcessor.ProcessEntry(context.Background(), e)
 	}
 
 	return
+}
+
+func (e *Entry) Read() entryReader {
+	return entryReader{e}
+}
+
+func (e *Entry) Drop() {
+	if e.logger != nil {
+		e.logger.pool.EntryPool.Release(e)
+	}
 }

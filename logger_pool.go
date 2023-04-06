@@ -48,9 +48,9 @@ func (pool *LoggerPool) Send(err error) (id xid.ID) {
 	}
 
 	e = pool.EntryPool.Acquire()
-	e.Severity = ERR
+	e.severity = ERR
 	parseErrorString(e, err.Error())
-	id = e.Id
+	id = e.id
 	pool.EntryProcessor.ProcessEntry(context.Background(), e)
 	return
 }

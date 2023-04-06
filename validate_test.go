@@ -10,14 +10,14 @@ func TestValidateEntryBytes(t *testing.T) {
 	var buf [1024]byte
 
 	e := Entry{
-		Id:         xid.New(),
-		Message:    "lorem ipsum dolor sit amet",
-		Tags:       [8]string{"foo", "bar", "baz"},
-		TagsCount:  3,
-		MetaKeys:   [32]string{"foo", "bar", "baz"},
-		MetaValues: [32]string{"foo", "bar", "baz"},
-		MetaCount:  3,
-		Level:      _8_Stack_trace,
+		id:         xid.New(),
+		message:    "lorem ipsum dolor sit amet",
+		tags:       [8]string{"foo", "bar", "baz"},
+		tagsCount:  3,
+		metaKeys:   [32]string{"foo", "bar", "baz"},
+		metaValues: [32]string{"foo", "bar", "baz"},
+		metaCount:  3,
+		level:      _8_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])
@@ -32,14 +32,14 @@ func BenchmarkValidateEntryBytes(b *testing.B) {
 	var buf [1024]byte
 
 	e := Entry{
-		Id:         xid.New(),
-		Message:    "lorem ipsum dolor sit amet",
-		Tags:       [8]string{"foo", "bar", "baz"},
-		TagsCount:  3,
-		MetaKeys:   [32]string{"foo", "bar", "baz"},
-		MetaValues: [32]string{"foo", "bar", "baz"},
-		MetaCount:  3,
-		Level:      _8_Stack_trace,
+		id:         xid.New(),
+		message:    "lorem ipsum dolor sit amet",
+		tags:       [8]string{"foo", "bar", "baz"},
+		tagsCount:  3,
+		metaKeys:   [32]string{"foo", "bar", "baz"},
+		metaValues: [32]string{"foo", "bar", "baz"},
+		metaCount:  3,
+		level:      _8_Stack_trace,
 	}
 
 	size := e.Encode(buf[:])

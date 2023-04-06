@@ -74,13 +74,13 @@ func (l *Logger) Debug(message string, tags ...string) (e *Entry) {
 func (l *Logger) log(severity Severity, message string, tags []string) (e *Entry) {
 	e = l.pool.EntryPool.Acquire()
 	e.logger = l
-	e.Id = xid.NewWithTime(l.pool.Clock.Now())
-	e.Severity = severity
-	e.Message = truncate(message, MaxMessageSize)
-	e.TtlEntry = l.ttlEntry
-	e.TtlMeta = l.ttlMeta
-	e.CategoryId = l.categoryId
-	copy(e.Tags[:], tags)
+	e.id = xid.NewWithTime(l.pool.Clock.Now())
+	e.severity = severity
+	e.message = truncate(message, MaxMessageSize)
+	e.ttlEntry = l.ttlEntry
+	e.ttlMeta = l.ttlMeta
+	e.categoryId = l.categoryId
+	copy(e.tags[:], tags)
 	return
 }
 
