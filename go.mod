@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/kpango/fastime v1.1.6
 	github.com/rs/xid v1.4.0
-	github.com/webbmaffian/go-mad v0.7.0
+	github.com/webbmaffian/go-mad v0.7.2
 )
 
 require (

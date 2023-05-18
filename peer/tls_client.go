@@ -64,13 +64,7 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 		return
 	}
 
-	// We have most likely lost any acknowledgements since restart,
-	// so acknowledge any pending entries just in case.
-	// TODO: Resend instead, and do this everytime we get disconnected
-	// c.ch.AckAll()
-
 	c.setupDialer()
-	c.setAck(c.ch.UnackLen() != 0)
 
 	go c.processEntries(ctx)
 	go c.processAcknowledgements(ctx)
@@ -263,6 +257,7 @@ func (c *TlsClient) connect(ctx context.Context) (err error) {
 	}
 
 	c.setAck(c.conn.ConnectionState().NegotiatedProtocol == protoAck)
+	c.ch.Rewind()
 
 	return
 }
