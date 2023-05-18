@@ -8,64 +8,100 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger"
-	"github.com/webbmaffian/go-logger/auth"
+	"github.com/webbmaffian/go-logger/peer"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
-	if err := startClient(ctx); err != nil {
+	var certs Certs
+
+	if err := certs.LoadOrCreate("certs", "localhost"); err != nil {
+		return
+	}
+
+	startServer(ctx, &certs)
+
+	if err := startClient(ctx, &certs); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func startClient(ctx context.Context) (err error) {
+func startClient(ctx context.Context, certs *Certs) (err error) {
 	var (
-		clientKey  auth.PrivateKey
-		clientCert auth.Certificate
-		rootCa     auth.Certificate
+		pool   *logger.Pool
+		client logger.Client
 	)
 
-	if err = clientKey.FromFile("client.key"); err != nil {
+	log.Println("starting client")
+
+	if client, err = peer.NewTlsClient(ctx, peer.TlsClientOptions{
+		Address:     "localhost:4610",
+		PrivateKey:  certs.ClientKey,
+		Certificate: certs.ClientCert,
+		RootCa:      certs.RootCa,
+		ErrorHandler: func(err error) {
+			log.Println("client:", err)
+		},
+		Debug: func(msg string) {
+			log.Println("client:", msg)
+		},
+	}); err != nil {
 		return
 	}
 
-	if err = clientCert.FromFile("client.cert"); err != nil {
+	if pool, err = logger.NewPool(client); err != nil {
 		return
-	}
-
-	if err = rootCa.FromFile("root.pem"); err != nil {
-		return
-	}
-
-	entryPool := logger.NewEntryPool()
-	clock := fastime.New().StartTimerD(ctx, time.Second)
-	pool := logger.LoggerPool{
-		EntryPool: entryPool,
-		EntryProcessor: logger.NewClient(ctx, &logger.ClientTLS{
-			Address:     "localhost:4610",
-			PrivateKey:  clientKey,
-			Certificate: clientCert,
-			RootCa:      rootCa,
-			Clock:       clock,
-		}, entryPool, logger.ClientOptions{
-			BufferSize: 8,
-		}),
-		Clock:    clock,
-		BucketId: 1680628490,
 	}
 
 	log.Println("all set up")
 	l := pool.Logger()
 
-	for i := 0; i < 10; i++ {
-		l.Debug("msg " + strconv.Itoa(i)).Send()
+	log.Println("waiting 3 seconds")
+	time.Sleep(time.Second * 3)
+
+	for i := 0; i < 100; i++ {
+		if err = ctx.Err(); err != nil {
+			return
+		}
+
+		log.Println(l.Debug("msg "+strconv.Itoa(i)).Send(), "- WRITTEN")
+		// time.Sleep(time.Second)
 	}
 
-	log.Println("done, waiting 1 sec...")
-	time.Sleep(time.Second)
+	log.Println("done")
+
+	log.Println("waiting 3 seconds")
+	time.Sleep(time.Second * 3)
+
+	return
+}
+
+func startServer(ctx context.Context, certs *Certs) (err error) {
+	var (
+		server *peer.TlsServer
+	)
+
+	log.Println("starting server")
+
+	if server, err = peer.NewTlsServer(ctx, peer.TlsServerOptions{
+		Address:     "localhost:4610",
+		PrivateKey:  certs.ServerKey,
+		Certificate: certs.ServerCert,
+		RootCa:      certs.RootCa,
+		ErrorHandler: func(err error) {
+			log.Println("server:", err)
+		},
+		Debug: func(msg string) {
+			log.Println("server:", msg)
+		},
+	}); err != nil {
+		return
+	}
+
+	_ = server
+
 	return
 }

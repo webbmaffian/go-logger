@@ -10,7 +10,7 @@ type Logger struct {
 	metaValues   []string
 	metricKeys   []string
 	metricValues []int32
-	pool         *LoggerPool
+	pool         *Pool
 	ttlEntry     uint16
 	ttlMeta      uint16
 	categoryId   uint8
@@ -22,13 +22,13 @@ func (l *Logger) Reset() {
 	l.metaValues = l.metaValues[:0]
 	l.metricKeys = l.metricKeys[:0]
 	l.metricValues = l.metricValues[:0]
-	l.ttlEntry = l.pool.DefaultEntryTTL
-	l.ttlMeta = l.pool.DefaultMetaTTL
+	l.ttlEntry = l.pool.opt.DefaultEntryTTL
+	l.ttlMeta = l.pool.opt.DefaultMetaTTL
 	l.categoryId = 0
 }
 
 func (l *Logger) Drop() {
-	l.pool.Release(l)
+	l.pool.ReleaseLogger(l)
 }
 
 // System is unusable - a panic condition
@@ -72,10 +72,10 @@ func (l *Logger) Debug(message string, tags ...string) (e *Entry) {
 }
 
 func (l *Logger) log(severity Severity, message string, tags []string) (e *Entry) {
-	e = l.pool.EntryPool.Acquire()
-	e.bucketId = l.pool.BucketId
+	e = l.pool.Entry()
+	e.bucketId = l.pool.opt.BucketId
 	e.logger = l
-	e.id = xid.NewWithTime(l.pool.Clock.Now())
+	e.id = xid.NewWithTime(l.pool.client.Now())
 	e.severity = severity
 	e.message = truncate(message, MaxMessageSize)
 	e.ttlEntry = l.ttlEntry

@@ -7,13 +7,13 @@ import (
 )
 
 func BenchmarkBareboneLog(b *testing.B) {
-	entryPool := NewEntryPool()
-	loggerPool := LoggerPool{
-		EntryPool:      entryPool,
-		EntryProcessor: &dummyWriter{entryPool},
-		Clock:          fastime.New(),
+	pool, err := NewPool(&dummyWriter{clock: fastime.New()})
+
+	if err != nil {
+		b.Fatal(err)
 	}
-	logger := loggerPool.Logger()
+
+	logger := pool.Logger()
 
 	b.ResetTimer()
 

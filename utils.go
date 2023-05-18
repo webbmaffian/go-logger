@@ -1,18 +1,10 @@
 package logger
 
 import (
-	"context"
-	"errors"
-	"io"
-	"log"
-	"math/big"
-	"net"
 	"regexp"
 	"strconv"
 	"strings"
 	"unsafe"
-
-	"github.com/google/uuid"
 )
 
 var regexErrorString = regexp.MustCompile(`('[^']+')|([0-9]+\.?[0-9]*)`)
@@ -32,51 +24,12 @@ func parseErrorString(e *Entry, str string) {
 	}), MaxMessageSize)
 }
 
-func max[T uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64 | int | uint | float32 | float64 | level](a, b T) T {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func min[T uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64 | int | uint | float32 | float64 | level](a, b T) T {
-	if a < b {
-		return a
-	}
-
-	return b
-}
-
 func truncate(str string, length int) string {
 	if len(str) > length {
 		return str[:length]
 	}
 
 	return str
-}
-
-func readFull(ctx context.Context, r io.Reader, buf []byte) (n int, err error) {
-	min := len(buf)
-	for n < min && err == nil {
-		if err = ctx.Err(); err != nil {
-			return
-		}
-		var nn int
-		nn, err = r.Read(buf[n:])
-		n += nn
-		log.Println("Read", n, "bytes")
-	}
-	if n >= min {
-		err = nil
-	} else if err == io.EOF {
-		if n > 0 {
-			err = io.ErrUnexpectedEOF
-		} else {
-			err = nil
-		}
-	}
-	return
 }
 
 func bytesToString(b []byte) string {
@@ -138,55 +91,4 @@ func stringify(val any) string {
 	}
 
 	return ""
-}
-
-var ErrNaN = errors.New("not a number")
-
-func toInt32(val any) (n int32, err error) {
-	switch v := val.(type) {
-	case int:
-		n = int32(v)
-	case int8:
-		n = int32(v)
-	case int16:
-		n = int32(v)
-	case int32:
-		n = int32(v)
-	case int64:
-		n = int32(v)
-	case uint:
-		n = int32(v)
-	case uint8:
-		n = int32(v)
-	case uint16:
-		n = int32(v)
-	case uint32:
-		n = int32(v)
-	case uint64:
-		n = int32(v)
-	case float32:
-		n = int32(v)
-	case float64:
-		n = int32(v)
-	default:
-		err = ErrNaN
-	}
-
-	return
-}
-
-func addrToIp(addr net.Addr) net.IP {
-	switch addr := addr.(type) {
-	case *net.UDPAddr:
-		return addr.IP
-	case *net.TCPAddr:
-		return addr.IP
-	}
-
-	return nil
-}
-
-func bigIntToUuid(i *big.Int) (id uuid.UUID) {
-	i.FillBytes(id[:])
-	return
 }

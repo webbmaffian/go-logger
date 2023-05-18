@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"syscall"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/jpillora/backoff"
 	"github.com/kpango/fastime"
+	"github.com/rs/xid"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
 	"github.com/webbmaffian/go-mad/channel"
@@ -25,6 +27,8 @@ const (
 )
 
 const xidLen = 12
+
+var _ logger.Client = (*TlsClient)(nil)
 
 type TlsClient struct {
 	conn     *tls.Conn
@@ -49,8 +53,21 @@ type TlsClientOptions struct {
 	Debug          func(msg string)
 }
 
+func (opt *TlsClientOptions) setDefaults() {
+	if opt.BufferFilepath == "" {
+		opt.BufferFilepath = "logs.bin"
+	}
+
+	if opt.BufferSize <= 0 {
+		opt.BufferSize = 100
+	}
+}
+
 func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err error) {
+	opt.setDefaults()
+
 	c = &TlsClient{
+		opt:   opt,
 		clock: fastime.New().StartTimerD(ctx, time.Second),
 		cond:  sync.Cond{L: &sync.Mutex{}},
 		backoff: backoff.Backoff{
@@ -81,10 +98,27 @@ func (c *TlsClient) close() error {
 	return c.ch.Close()
 }
 
-func (c *TlsClient) Send(e *logger.Entry) {
+func (c *TlsClient) BucketId() uint32 {
+	cert, err := c.opt.Certificate.X509()
+
+	// If there is exactly one bucket ID in the certificate (4 bytes uint32)
+	if err == nil && len(cert.SubjectKeyId) == 4 {
+		return binary.BigEndian.Uint32(cert.SubjectKeyId)
+	}
+
+	return 0
+}
+
+func (c *TlsClient) Now() time.Time {
+	return c.clock.Now()
+}
+
+func (c *TlsClient) ProcessEntry(_ context.Context, e *logger.Entry) (err error) {
 	c.ch.WriteOrFail(func(b []byte) {
 		e.Encode(b)
 	})
+
+	return
 }
 
 func (c *TlsClient) processEntries(ctx context.Context) {
@@ -140,14 +174,15 @@ func (c *TlsClient) awaitAck() {
 	c.cond.L.Lock()
 	defer c.cond.L.Unlock()
 
-	for c.ack && c.ackAwait > 0 {
+	for c.ackAwait == 0 {
 		c.cond.Wait()
-		c.ackAwait--
 	}
+
+	c.ackAwait--
 }
 
 func (c *TlsClient) processAcknowledgements(ctx context.Context) {
-	var buf [xidLen]byte
+	var buf xid.ID
 	l := 0
 
 	for {
@@ -158,6 +193,7 @@ func (c *TlsClient) processAcknowledgements(ctx context.Context) {
 			l += r
 
 			if l == xidLen {
+				log.Println(buf, "- ACK")
 				c.ch.Ack(func(b []byte) bool {
 					return bytes.Equal(c.entryId(b), buf[:])
 				})
@@ -183,7 +219,7 @@ func (c *TlsClient) setupDialer() {
 	c.dialer = tls.Dialer{
 		Config: &tls.Config{
 			GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-				c.opt.Debug("client: the server is requesting a certificate")
+				c.debug("the server is requesting a certificate")
 				return cert, nil
 			},
 			RootCAs:            c.opt.RootCa.X509Pool(),
@@ -200,7 +236,7 @@ func (c *TlsClient) setupDialer() {
 
 	if c.opt.Debug != nil {
 		c.dialer.NetDialer.Control = func(network, address string, _ syscall.RawConn) error {
-			c.debug("client: dialing " + address + " over " + network + "...")
+			c.debug("dialing " + address + " over " + network + "...")
 			return nil
 		}
 	}

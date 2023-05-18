@@ -605,7 +605,7 @@ func (e *Entry) Send() (id xid.ID) {
 			e.metricCount++
 		}
 
-		e.logger.pool.EntryProcessor.ProcessEntry(context.Background(), e)
+		e.logger.pool.client.ProcessEntry(context.Background(), e)
 	}
 
 	return
@@ -619,6 +619,6 @@ func (e *Entry) Read() entryReader {
 // Releases the entry back to the pool. Any usage of the entry afterwards might panic.
 func (e *Entry) Drop() {
 	if e.logger != nil {
-		e.logger.pool.EntryPool.Release(e)
+		e.logger.pool.ReleaseEntry(e)
 	}
 }

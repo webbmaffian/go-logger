@@ -16,11 +16,10 @@ import (
 )
 
 type TlsServer struct {
-	opt          TlsServerOptions
-	listener     net.Listener
-	listenConfig net.ListenConfig
-	clock        fastime.Fastime
-	connPool     sync.Pool
+	opt      TlsServerOptions
+	listener net.Listener
+	clock    fastime.Fastime
+	connPool sync.Pool
 }
 
 type TlsServerOptions struct {
@@ -36,8 +35,21 @@ type TlsServerOptions struct {
 	NoCopy        bool
 }
 
+func (opt *TlsServerOptions) setDefaults() {
+	if opt.EntryProc == nil {
+		opt.EntryProc = entryEchoer{}
+	}
+
+	if opt.ClientTimeout <= 0 {
+		opt.ClientTimeout = time.Second * 60
+	}
+}
+
 func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err error) {
-	netListener, err := s.listenConfig.Listen(ctx, "tcp", opt.Address)
+	opt.setDefaults()
+
+	var listenConfig net.ListenConfig
+	netListener, err := listenConfig.Listen(ctx, "tcp", opt.Address)
 
 	if err != nil {
 		return
@@ -100,12 +112,14 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 	for {
 		conn, err := s.listener.Accept()
 
-		if err == net.ErrClosed {
+		if errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
 			s.error(err)
 			continue
 		}
+
+		s.debug("incoming connection")
 
 		if tlsConn, ok := conn.(*tls.Conn); ok {
 			go func(tlsConn *tls.Conn) {
