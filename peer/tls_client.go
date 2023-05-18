@@ -35,7 +35,7 @@ type TlsClient struct {
 	backoff  backoff.Backoff
 	ack      bool
 	ackAwait int
-	ackCond  sync.Cond
+	cond     sync.Cond
 }
 
 type TlsClientOptions struct {
@@ -51,8 +51,8 @@ type TlsClientOptions struct {
 
 func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err error) {
 	c = &TlsClient{
-		clock:   fastime.New().StartTimerD(ctx, time.Second),
-		ackCond: sync.Cond{L: &sync.Mutex{}},
+		clock: fastime.New().StartTimerD(ctx, time.Second),
+		cond:  sync.Cond{L: &sync.Mutex{}},
 		backoff: backoff.Backoff{
 			Factor: 2,
 			Min:    time.Second,
@@ -73,6 +73,7 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	c.setAck(c.ch.UnackLen() != 0)
 
 	go c.processEntries(ctx)
+	go c.processAcknowledgements(ctx)
 
 	go func() {
 		<-ctx.Done()
@@ -134,24 +135,24 @@ func (c *TlsClient) processEntry(ctx context.Context, b []byte) {
 
 // Signal that we are expecting an acknowledgement
 func (c *TlsClient) expectAck() {
-	c.ackCond.L.Lock()
-	defer c.ackCond.L.Unlock()
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
 
 	c.ackAwait++
-	c.ackCond.Signal()
+	c.cond.Signal()
 }
 
 func (c *TlsClient) awaitAck() {
-	c.ackCond.L.Lock()
-	defer c.ackCond.L.Unlock()
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
 
-	for c.ackAwait > 0 {
-		c.ackCond.Wait()
+	for c.ack && c.ackAwait > 0 {
+		c.cond.Wait()
 		c.ackAwait--
 	}
 }
 
-func (c *TlsClient) ackEntries(ctx context.Context) {
+func (c *TlsClient) processAcknowledgements(ctx context.Context) {
 	var buf [xidLen]byte
 	l := 0
 
@@ -176,7 +177,7 @@ func (c *TlsClient) ackEntries(ctx context.Context) {
 				}
 
 				c.error(err)
-				c.tryConnect(ctx)
+				break
 			}
 		}
 	}
@@ -276,8 +277,11 @@ func (c *TlsClient) disconnect() (err error) {
 }
 
 func (c *TlsClient) setAck(ack bool) {
-	c.ack = ack
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
 
+	c.ack = ack
+	c.cond.Signal()
 }
 
 func (c *TlsClient) error(err error) {
