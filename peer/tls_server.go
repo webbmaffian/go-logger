@@ -133,6 +133,7 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 			}(tlsConn)
 		} else {
 			s.debug("expected TLS connection")
+			conn.Close()
 		}
 	}
 }

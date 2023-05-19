@@ -37,7 +37,9 @@ func (conn *tlsServerConn) listen(ctx context.Context) (err error) {
 		}
 
 		if conn.ack {
-			conn.sendAck()
+			if err = conn.sendAck(); err != nil {
+				return
+			}
 		}
 	}
 }

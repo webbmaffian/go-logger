@@ -10,5 +10,7 @@ github.com/rs/xid v1.4.0 h1:qd7wPTDkN6KQx2VmMBLrpHkiyQwgFXRnkOLacUiaSNY=
 github.com/rs/xid v1.4.0/go.mod h1:trrq9SKmegXys3aeAKXMUTdJsYXVwGY3RLcfgqegfbg=
 github.com/webbmaffian/go-mad v0.7.2 h1:aQ+X2djFCzejsQVdD71OVTRHNdLjr4Q7QMkpiyvnDC8=
 github.com/webbmaffian/go-mad v0.7.2/go.mod h1:T3eI0/HvMKNiK35tfRMrnnFJGoUQj+ldxF2sK1f32hA=
+github.com/webbmaffian/go-mad v0.8.0 h1:SCFdtnb0t9M1pbc2QEQYAkw3zelqu8KCZyb4opevFbE=
+github.com/webbmaffian/go-mad v0.8.0/go.mod h1:T3eI0/HvMKNiK35tfRMrnnFJGoUQj+ldxF2sK1f32hA=
 golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e h1:fLOSk5Q00efkSvAm+4xcoXD+RRmLmmulPn5I3Y9F2EM=
 golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

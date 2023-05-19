@@ -59,8 +59,8 @@ func startClient(ctx context.Context, certs *Certs) (err error) {
 	log.Println("all set up")
 	l := pool.Logger()
 
-	log.Println("waiting 3 seconds")
-	time.Sleep(time.Second * 3)
+	// log.Println("waiting 3 seconds")
+	// time.Sleep(time.Second * 3)
 
 	for i := 0; i < 100; i++ {
 		if err = ctx.Err(); err != nil {
