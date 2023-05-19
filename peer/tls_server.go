@@ -17,9 +17,8 @@ import (
 
 type TlsServer struct {
 	opt      TlsServerOptions
-	listener net.Listener
-	clock    fastime.Fastime
 	connPool sync.Pool
+	listener net.Listener
 }
 
 type TlsServerOptions struct {
@@ -32,10 +31,11 @@ type TlsServerOptions struct {
 	Auth          func(ctx context.Context, x509Cert *x509.Certificate) (err error)
 	ErrorHandler  func(err error)
 	Debug         func(msg string)
+	Clock         fastime.Fastime
 	NoCopy        bool
 }
 
-func (opt *TlsServerOptions) setDefaults() {
+func (opt *TlsServerOptions) setDefaults(ctx context.Context) {
 	if opt.EntryProc == nil {
 		opt.EntryProc = entryEchoer{}
 	}
@@ -43,10 +43,14 @@ func (opt *TlsServerOptions) setDefaults() {
 	if opt.ClientTimeout <= 0 {
 		opt.ClientTimeout = time.Second * 60
 	}
+
+	if opt.Clock == nil {
+		opt.Clock = fastime.New().StartTimerD(ctx, time.Second)
+	}
 }
 
 func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err error) {
-	opt.setDefaults()
+	opt.setDefaults(ctx)
 
 	var listenConfig net.ListenConfig
 	netListener, err := listenConfig.Listen(ctx, "tcp", opt.Address)
@@ -56,12 +60,11 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 	}
 
 	s = &TlsServer{
-		opt:   opt,
-		clock: fastime.New().StartTimerD(ctx, time.Second),
+		opt: opt,
 	}
 
 	s.listener = tls.NewListener(netListener, &tls.Config{
-		Time:         s.clock.Now,
+		Time:         s.opt.Clock.Now,
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
 		NextProtos:   []string{protoAck, proto},
@@ -168,7 +171,7 @@ func (s *TlsServer) acquireConn(tlsConn *tls.Conn) (conn *tlsServerConn, err err
 	} else {
 		conn = &tlsServerConn{
 			entryProc:     s.opt.EntryProc,
-			clock:         s.clock,
+			clock:         s.opt.Clock,
 			entry:         new(logger.Entry),
 			clientTimeout: s.opt.ClientTimeout,
 			noCopy:        s.opt.NoCopy,
