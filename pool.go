@@ -10,32 +10,19 @@ import (
 
 type Pool struct {
 	loggerPool sync.Pool
-	entryPool  sync.Pool
 	client     Client
 	opt        PoolOptions
 }
 
 type PoolOptions struct {
+	EntryPool          *EntryPool
 	BucketId           uint32
 	DefaultEntryTTL    uint16
 	DefaultMetaTTL     uint16
 	StackTraceSeverity Severity
 }
 
-func NewPool(client Client, options ...PoolOptions) (*Pool, error) {
-	var opt PoolOptions
-
-	if options != nil {
-		opt = options[0]
-	}
-
-	if opt.BucketId == 0 {
-		opt.BucketId = client.BucketId()
-
-		if opt.BucketId == 0 {
-			return nil, errors.New("bucket ID could not be determined by certificate - please provide it in PoolOptions")
-		}
-	}
+func (opt *PoolOptions) setDefaults() {
 
 	if opt.DefaultEntryTTL == 0 {
 		opt.DefaultEntryTTL = 30
@@ -48,6 +35,28 @@ func NewPool(client Client, options ...PoolOptions) (*Pool, error) {
 	// Zero is actually a valid severity, but is frankly stupid
 	if opt.StackTraceSeverity == 0 {
 		opt.StackTraceSeverity = NOTICE
+	}
+
+	if opt.EntryPool == nil {
+		opt.EntryPool = new(EntryPool)
+	}
+}
+
+func NewPool(client Client, options ...PoolOptions) (*Pool, error) {
+	var opt PoolOptions
+
+	if options != nil {
+		opt = options[0]
+	}
+
+	opt.setDefaults()
+
+	if opt.BucketId == 0 {
+		opt.BucketId = client.BucketId()
+
+		if opt.BucketId == 0 {
+			return nil, errors.New("bucket ID could not be determined by certificate - please provide it in PoolOptions")
+		}
 	}
 
 	return &Pool{
@@ -75,19 +84,11 @@ func (pool *Pool) ReleaseLogger(l *Logger) {
 }
 
 func (pool *Pool) Entry() (e *Entry) {
-	if v := pool.entryPool.Get(); v != nil {
-		e = v.(*Entry)
-	} else {
-		e = &Entry{
-			level: _3_Message,
-		}
-	}
-	return
+	return pool.opt.EntryPool.Acquire()
 }
 
 func (pool *Pool) ReleaseEntry(e *Entry) {
-	e.Reset()
-	pool.entryPool.Put(e)
+	pool.opt.EntryPool.Release(e)
 }
 
 func (pool *Pool) Send(err error) (id xid.ID) {
