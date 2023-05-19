@@ -52,6 +52,15 @@ func (opt *TlsServerOptions) setDefaults(ctx context.Context) {
 func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err error) {
 	opt.setDefaults(ctx)
 
+	if err = opt.Certificate.Validate(opt.PrivateKey); err != nil {
+		return
+	}
+
+	if opt.Certificate.Type() != auth.Server {
+		err = errors.New("not a server certificate")
+		return
+	}
+
 	var listenConfig net.ListenConfig
 	netListener, err := listenConfig.Listen(ctx, "tcp", opt.Address)
 

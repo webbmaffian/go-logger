@@ -28,7 +28,7 @@ var (
 type CertificateType uint8
 
 const (
-	Unchanged CertificateType = iota
+	Unset CertificateType = iota
 	Client
 	Server
 	Root
@@ -71,7 +71,7 @@ func (c CertificateOptions) parseCertificateDetails(cert *x509.Certificate) (err
 		cert.IPAddresses = append(cert.IPAddresses, c.IPAddresses...)
 	}
 
-	if c.Type != Unchanged {
+	if c.Type != Unset {
 		cert.IsCA = false
 		cert.BasicConstraintsValid = false
 		cert.MaxPathLenZero = false
@@ -290,6 +290,73 @@ func (c *Certificate) FromFile(path string) (err error) {
 	return c.DecodePEM(b)
 }
 
+func (c *Certificate) IsNil() bool {
+	return *c == nil
+}
+
+func (c *Certificate) Validate(privKey PrivateKey) (err error) {
+	if c.IsNil() {
+		return errors.New("certificate is empty")
+	}
+
+	cert, err := c.X509()
+
+	if err != nil {
+		return errors.New("corrupt certificate")
+	}
+
+	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
+		return errors.New("certificate is missing Digital Signature usage")
+	}
+
+	pubKey, err := certPublicKey(cert)
+
+	if err != nil {
+		return
+	}
+
+	if !pubKey.Equal(privKey.Public()) {
+		return errors.New("certificate and key does not belong together")
+	}
+
+	return
+}
+
+func (c *Certificate) PublicKey() (key ed25519.PublicKey) {
+	cert, err := c.X509()
+
+	if err == nil {
+		key, _ = certPublicKey(cert)
+	}
+
+	return
+}
+
+func (c *Certificate) Type() CertificateType {
+	cert, err := c.X509()
+
+	if err != nil {
+		return Unset
+	}
+
+	if cert.KeyUsage&x509.KeyUsageCertSign != 0 {
+		return Root
+	}
+
+	for _, usage := range cert.ExtKeyUsage {
+		switch usage {
+
+		case x509.ExtKeyUsageServerAuth:
+			return Server
+
+		case x509.ExtKeyUsageClientAuth:
+			return Client
+		}
+	}
+
+	return Unset
+}
+
 func mergePkixNames(n1 pkix.Name, nn ...pkix.Name) pkix.Name {
 	for _, n2 := range nn {
 		if n2.CommonName != "" {
@@ -312,4 +379,14 @@ func mergePkixNames(n1 pkix.Name, nn ...pkix.Name) pkix.Name {
 	}
 
 	return n1
+}
+
+func certPublicKey(cert *x509.Certificate) (key ed25519.PublicKey, err error) {
+	var ok bool
+
+	if key, ok = cert.PublicKey.(ed25519.PublicKey); !ok {
+		err = errors.New("invalid public key")
+	}
+
+	return
 }

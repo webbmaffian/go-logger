@@ -66,6 +66,15 @@ func (opt *TlsClientOptions) setDefaults() {
 func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err error) {
 	opt.setDefaults()
 
+	if err = opt.Certificate.Validate(opt.PrivateKey); err != nil {
+		return
+	}
+
+	if opt.Certificate.Type() != auth.Client {
+		err = errors.New("not a client certificate")
+		return
+	}
+
 	c = &TlsClient{
 		opt:   opt,
 		clock: fastime.New().StartTimerD(ctx, time.Second),
