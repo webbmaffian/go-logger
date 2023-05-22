@@ -456,12 +456,15 @@ func (e *Entry) Sev(severity Severity) *Entry {
 
 // Sets the category ID of the entry. Chainable.
 func (e *Entry) Cat(categoryId uint8) *Entry {
+	e.incLevel(_4_CategoryId)
 	e.categoryId = categoryId
 	return e
 }
 
 // Appends tags to the entry. Stops if the entry's number of tags exceeds `MaxTagsCount`. Chainable.
 func (e *Entry) Tag(tags ...any) *Entry {
+	e.incLevel(_5_Tags)
+
 	for i := range tags {
 		if e.tagsCount >= MaxTagsCount {
 			break
@@ -480,6 +483,8 @@ func (e *Entry) Tag(tags ...any) *Entry {
 
 // Prepends tags to the entry and removes any tags that overflow `MaxTagsCount`. Chainable.
 func (e *Entry) PrependTag(tag ...any) *Entry {
+	e.incLevel(_5_Tags)
+
 	if e.tagsCount == 0 || len(tag) >= MaxTagsCount {
 		e.tagsCount = 0
 		return e.Tag(tag...)
@@ -501,10 +506,13 @@ func (e *Entry) PrependTag(tag ...any) *Entry {
 }
 
 func (e *Entry) MetaBlob(value any) *Entry {
+	e.incLevel(_7_Meta)
 	return e.Meta("_", value)
 }
 
 func (e *Entry) Meta(key string, value any) *Entry {
+	e.incLevel(_7_Meta)
+
 	if e.metaCount >= MaxMetaCount {
 		return e
 	}
@@ -521,6 +529,8 @@ func (e *Entry) Meta(key string, value any) *Entry {
 }
 
 func (e *Entry) Metric(key string, value int32) *Entry {
+	e.incLevel(_6_Metric)
+
 	if e.metricCount >= MaxMetricCount {
 		return e
 	}
@@ -539,6 +549,8 @@ func (e *Entry) Metric(key string, value int32) *Entry {
 // Sets the stack trace to the current line of code. This operation is expensive compared
 // to any other method. You can optionally skip levels. Chainable.
 func (e *Entry) Trace(skipLevels ...int) *Entry {
+	e.incLevel(_8_Stack_trace)
+
 	if skipLevels != nil {
 		e.addStackTrace(1 + skipLevels[0])
 	} else {
@@ -551,6 +563,8 @@ func (e *Entry) Trace(skipLevels ...int) *Entry {
 // Appens to the stack trace manually - this should most likely not be used unless you want to
 // load an entry from an external source, e.g. database. Chainable.
 func (e *Entry) ManualTrace(path string, line uint16) *Entry {
+	e.incLevel(_8_Stack_trace)
+
 	if e.stackTraceCount < MaxStackTraceCount {
 		e.stackTracePaths[e.stackTraceCount] = path
 		e.stackTraceLines[e.stackTraceCount] = line
@@ -561,11 +575,13 @@ func (e *Entry) ManualTrace(path string, line uint16) *Entry {
 }
 
 func (e *Entry) TTL(days uint16) *Entry {
+	e.incLevel(_9_TTL_Entry)
 	e.ttlEntry = days
 	return e
 }
 
 func (e *Entry) MetaTTL(days uint16) *Entry {
+	e.incLevel(_10_TTL_Meta)
 	e.ttlMeta = days
 	return e
 }
@@ -621,4 +637,8 @@ func (e *Entry) Drop() {
 	if e.logger != nil {
 		e.logger.pool.ReleaseEntry(e)
 	}
+}
+
+func (e *Entry) incLevel(lvl level) {
+	e.level = max(e.level, lvl)
 }
