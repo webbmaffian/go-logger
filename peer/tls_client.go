@@ -7,9 +7,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -38,6 +38,7 @@ type TlsClient struct {
 	opt      TlsClientOptions
 	backoff  backoff.Backoff
 	ack      bool
+	rewinded atomic.Bool
 	ackAwait int
 	cond     sync.Cond
 }
@@ -153,7 +154,7 @@ func (c *TlsClient) processEntry(ctx context.Context, b []byte) {
 	b = b[:size]
 
 	for bytesWritten < size {
-		s, err := c.conn.Write(b)
+		s, err := c.conn.Write(b[bytesWritten:])
 		bytesWritten += s
 
 		if err == nil {
@@ -202,10 +203,14 @@ func (c *TlsClient) processAcknowledgements(ctx context.Context) {
 			l += r
 
 			if l == xidLen {
-				log.Println(buf, "- ACK")
-				c.ch.Ack(func(b []byte) bool {
+				_, missing := c.ch.Ack(func(b []byte) bool {
 					return bytes.Equal(c.entryId(b), buf[:])
 				})
+
+				if missing && c.rewinded.CompareAndSwap(false, true) {
+					c.ch.Rewind()
+				}
+
 				l = 0
 				break
 			}
@@ -302,7 +307,7 @@ func (c *TlsClient) connect(ctx context.Context) (err error) {
 	}
 
 	c.setAck(c.conn.ConnectionState().NegotiatedProtocol == protoAck)
-	c.ch.Rewind()
+	c.rewinded.Store(false)
 
 	return
 }
