@@ -506,7 +506,6 @@ func (e *Entry) PrependTag(tag ...any) *Entry {
 }
 
 func (e *Entry) MetaBlob(value any) *Entry {
-	e.incLevel(_7_Meta)
 	return e.Meta("_", value)
 }
 
