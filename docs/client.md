@@ -1,5 +1,5 @@
 # Client usage
-These examples assumes that you already have:
+These examples assume that you already have:
 - a private key
 - a client certificate signed by CA
 - the root CA certificate.
