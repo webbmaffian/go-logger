@@ -5,12 +5,15 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"io"
 	"time"
 
 	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger"
 )
+
+var ponged = errors.New("ponged")
 
 type tlsServerConn struct {
 	buf            [logger.MaxEntrySize]byte
@@ -25,12 +28,6 @@ type tlsServerConn struct {
 }
 
 func (conn *tlsServerConn) listen(ctx context.Context) (err error) {
-	if !conn.ack {
-		if err = conn.conn.CloseWrite(); err != nil {
-			return
-		}
-	}
-
 	for {
 		if err = conn.handleEntry(ctx); err != nil {
 			return
@@ -52,6 +49,15 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 	}
 
 	size := binary.BigEndian.Uint16(conn.buf[:2])
+
+	// Sending two empty bytes is a ping - answer with a 1 byte pong
+	if size == 0 {
+		_, err = conn.conn.Write([]byte{1})
+
+		if err == nil {
+			return ponged
+		}
+	}
 
 	if size < 6 {
 		return logger.ErrTooShort

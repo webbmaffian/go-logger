@@ -29,23 +29,26 @@ func client(ctx context.Context) (err error) {
 		root auth.Certificate
 	)
 
-	if err = key.FromFile("private.key"); err != nil {
+	if err = key.FromFile("live/private.key"); err != nil {
 		return
 	}
 
-	if err = cert.FromFile("certificate.pem"); err != nil {
+	if err = cert.FromFile("live/certificate.pem"); err != nil {
 		return
 	}
 
-	if err = root.FromFile("root.pem"); err != nil {
+	if err = root.FromFile("live/root-ca.pem"); err != nil {
 		return
 	}
 
 	cli, err := peer.NewTlsClient(ctx, peer.TlsClientOptions{
-		Address:     "localhost:4610",
+		Address:     "webmafia.log.center:4610",
 		PrivateKey:  key,
 		Certificate: cert,
 		RootCa:      root,
+		Debug: func(msg string) {
+			log.Println(msg)
+		},
 	})
 
 	if err != nil {
@@ -58,7 +61,7 @@ func client(ctx context.Context) (err error) {
 		return
 	}
 
-	log := pool.Logger()
+	log := pool.Logger().Cat(1)
 
 	log.Info("hello there %s", "1").Send()
 	log.Info("hello there %s", "2").Send()
