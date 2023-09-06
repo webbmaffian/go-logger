@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"math"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/rs/xid"
@@ -118,12 +119,37 @@ var nilId xid.ID
 
 // Implements stringer interface
 func (e Entry) String() string {
-	return e.message
+	var (
+		builder    strings.Builder
+		valueIndex uint8
+		i          uint8
+	)
+
+	for i = 0; i < e.tagsCount; i++ {
+		if e.message[i] == '%' && int(i+1) < len(e.message) {
+			if e.message[i+1] == '%' {
+				builder.WriteByte('%')
+				i++ // Skip the second '%'
+			} else {
+				if valueIndex < e.tagsCount {
+					builder.WriteString(e.tags[valueIndex])
+					valueIndex++
+					i++ // Skip the placeholder
+				} else {
+					builder.WriteByte('%')
+				}
+			}
+		} else {
+			builder.WriteByte(e.message[i])
+		}
+	}
+
+	return builder.String()
 }
 
 // Implements error interface
 func (e Entry) Error() string {
-	return e.message
+	return e.String()
 }
 
 // Reset the entry as if it was fresh from the pool
