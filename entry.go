@@ -120,20 +120,22 @@ var nilId xid.ID
 // Implements stringer interface
 func (e Entry) String() string {
 	var (
-		builder    strings.Builder
-		valueIndex uint8
-		i          uint8
+		builder strings.Builder
+		tagIdx  uint8
+		i       uint8
 	)
 
-	for i = 0; i < e.tagsCount; i++ {
+	strLen := uint8(len(e.message))
+
+	for i = 0; i < strLen; i++ {
 		if e.message[i] == '%' && int(i+1) < len(e.message) {
 			if e.message[i+1] == '%' {
 				builder.WriteByte('%')
 				i++ // Skip the second '%'
 			} else {
-				if valueIndex < e.tagsCount {
-					builder.WriteString(e.tags[valueIndex])
-					valueIndex++
+				if tagIdx < e.tagsCount {
+					builder.WriteString(e.tags[tagIdx])
+					tagIdx++
 					i++ // Skip the placeholder
 				} else {
 					builder.WriteByte('%')
