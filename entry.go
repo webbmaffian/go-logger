@@ -234,7 +234,7 @@ func (e *Entry) Encode(b []byte) (s int) {
 			s++
 			for i = 0; i < e.metaCount; i++ {
 				keyLen := len(e.metaKeys[i])
-				valLen := len(e.metaKeys[i])
+				valLen := len(e.metaValues[i])
 
 				if s+keyLen+valLen+3 > MaxEntrySize {
 					b[pos] = i
