@@ -21,7 +21,7 @@ func BenchmarkTruncateLong(b *testing.B) {
 	}
 }
 
-func Benchmarks2b(b *testing.B) {
+func BenchmarkS2b(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = s2b("foobar")
 	}
