@@ -170,6 +170,8 @@ func (e *Entry) Reset() {
 func (e *Entry) Encode(b []byte) (s int) {
 	var i uint8
 	var l level
+
+	// Reserve two bytes for the size annotation
 	s += 2
 
 	for l = 0; l <= e.level; l++ {
@@ -295,11 +297,15 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 		unsafe = true
 	}
 
-	if len(b) < 2 {
+	// An entry must contain at least size annotation (2 bytes), bucket ID (4 bytes) and entry ID (12 bytes)
+	if len(b) < 18 {
 		return ErrTooShort
 	}
 
 	var s uint16
+
+	// Existence of size annotation is already ensured. And this can't overflow as the annotation
+	// is an uint16, which can't store an integer larger than 2^16, which is the max length of an entry.
 	total := binary.BigEndian.Uint16(b[s:])
 	s += 2
 
@@ -307,13 +313,16 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 		return ErrCorruptEntry
 	}
 
+loop:
 	for e.level = 0; e.level < _End_Level; e.level++ {
 		switch e.level {
 
+		// Existence of bucket ID is already ensured
 		case _0_BucketId:
 			e.bucketId = binary.BigEndian.Uint32(b[s:])
 			s += 4
 
+		// Existence of entry ID is already ensured
 		case _1_EntryId:
 			if e.id, err = xid.FromBytes(b[s : s+12]); err != nil {
 				return
@@ -321,38 +330,85 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 
 			s += 12
 
+		// Only one byte, can't be out of range
 		case _2_Severity:
 			e.severity = Severity(b[s])
 			s++
 
+		// Message length is dynamic and must not be out of range
 		case _3_Message:
 			size := uint16(b[s])
 			s++
+
+			// Out of range?
+			if s+size > total {
+				break loop
+			}
+
 			e.message = toString(b[s:s+size], unsafe)
 			s += size
 
+		// Only one byte, can't be out of range
 		case _4_CategoryId:
 			e.categoryId = b[s]
 			s++
 
+		// Tags count and length are dynamic and must not be out of range
 		case _5_Tags:
 			e.tagsCount = b[s]
 			s++
+
+			// Out of range?
+			if e.tagsCount > MaxTagsCount {
+				break loop
+			}
+
 			var i uint8
 			for i = 0; i < e.tagsCount; i++ {
+
+				// Out of range?
+				if s >= total {
+					break loop
+				}
+
 				size := uint16(b[s])
 				s++
+
+				// Out of range?
+				if s+size > total {
+					break loop
+				}
+
 				e.tags[i] = toString(b[s:s+size], unsafe)
 				s += size
 			}
 
+		// Metric count and length are dynamic and must not be out of range
 		case _6_Metric:
 			e.metricCount = b[s]
 			s++
+
+			// Out of range?
+			if e.metricCount > MaxMetricCount {
+				break loop
+			}
+
 			var i uint8
 			for i = 0; i < e.metricCount; i++ {
+
+				// Out of range?
+				if s >= total {
+					break loop
+				}
+
 				size := uint16(b[s])
 				s++
+
+				// Out of range?
+				if s+size+4 > total {
+					break loop
+				}
+
 				e.metricKeys[i] = toString(b[s:s+size], unsafe)
 				s += size
 
@@ -360,29 +416,73 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 				s += 4
 			}
 
+		// Meta count and length are dynamic and must not be out of range
 		case _7_Meta:
 			e.metaCount = b[s]
 			s++
+
+			// Out of range?
+			if e.metaCount > MaxMetaCount {
+				break loop
+			}
+
 			var i uint8
 			for i = 0; i < e.metaCount; i++ {
+
+				// Out of range?
+				if s >= total {
+					break loop
+				}
+
 				size := uint16(b[s])
 				s++
+
+				// Out of range?
+				if s+size+2 >= total {
+					break loop
+				}
+
 				e.metaKeys[i] = toString(b[s:s+size], unsafe)
 				s += size
 
 				size = binary.BigEndian.Uint16(b[s : s+2])
 				s += 2
+
+				// Out of range?
+				if s+size > total {
+					break loop
+				}
+
 				e.metaValues[i] = toString(b[s:s+size], unsafe)
 				s += size
 			}
 
+		// Stack trace count and length are dynamic and must not be out of range
 		case _8_Stack_trace:
 			e.stackTraceCount = b[s]
 			s++
+
+			// Out of range?
+			if e.stackTraceCount > MaxStackTraceCount {
+				break loop
+			}
+
 			var i uint8
 			for i = 0; i < e.stackTraceCount; i++ {
+
+				// Out of range?
+				if s >= total {
+					break loop
+				}
+
 				size := uint16(b[s])
 				s++
+
+				// Out of range?
+				if s+size+2 > total {
+					break loop
+				}
+
 				e.stackTracePaths[i] = toString(b[s:s+size], unsafe)
 				s += size
 
@@ -390,18 +490,30 @@ func (e *Entry) Decode(b []byte, noCopy ...bool) (err error) {
 				s += 2
 			}
 
+		// TTL is always 2 bytes and must not be out of range
 		case _9_TTL_Entry:
+
+			// Out of range?
+			if s+2 > total {
+				break loop
+			}
+
 			e.ttlEntry = binary.BigEndian.Uint16(b[s:])
 			s += 2
 
+		// TTL is always 2 bytes and must not be out of range
 		case _10_TTL_Meta:
 			e.ttlMeta = binary.BigEndian.Uint16(b[s:])
 			s += 2
 		}
 
 		if s >= total {
-			break
+			break loop
 		}
+	}
+
+	if s != total {
+		return ErrCorruptEntry
 	}
 
 	return
