@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 var regexErrorString = regexp.MustCompile(`('[^']+')|([0-9]+\.?[0-9]*)`)
@@ -48,17 +47,6 @@ func truncate(str string, length int) string {
 	return str
 }
 
-func bytesToString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
-}
-
-func stringToBytes(s string) (b []byte) {
-	return *(*[]byte)(unsafe.Pointer(&struct {
-		string
-		int
-	}{s, len(s)}))
-}
-
 type stringer interface {
 	String() string
 }
@@ -78,7 +66,7 @@ func stringify(val any) string {
 			return "false"
 		}
 	case []byte:
-		return bytesToString(v)
+		return b2s(v)
 	case int:
 		return strconv.FormatInt(int64(v), 10)
 	case int8:

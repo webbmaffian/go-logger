@@ -546,7 +546,7 @@ func (e *Entry) addStackTrace(skip int) {
 
 func toString(b []byte, unsafe bool) string {
 	if unsafe {
-		return bytesToString(b)
+		return b2s(b)
 	}
 
 	return string(b)
