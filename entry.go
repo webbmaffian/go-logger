@@ -732,7 +732,7 @@ func (e *Entry) Send() (id xid.ID) {
 	// Any tags, meta and metrics are appended from the logger in ths stage
 	if e.logger != nil {
 		for i := range e.logger.tags {
-			if e.tagsCount > MaxTagsCount {
+			if e.tagsCount >= MaxTagsCount {
 				break
 			}
 
