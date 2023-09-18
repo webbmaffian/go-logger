@@ -124,7 +124,7 @@ func (c *TlsClient) Now() time.Time {
 }
 
 func (c *TlsClient) ProcessEntry(_ context.Context, e *logger.Entry) (err error) {
-	c.ch.WriteOrFail(func(b []byte) {
+	c.ch.WriteOrReplace(func(b []byte) {
 		e.Encode(b)
 	})
 
