@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -39,7 +38,6 @@ type TlsClient struct {
 	opt      TlsClientOptions
 	backoff  backoff.Backoff
 	ack      bool
-	rewinded atomic.Bool
 	ackAwait int
 	cond     sync.Cond
 }
@@ -312,7 +310,6 @@ func (c *TlsClient) connect(ctx context.Context) (err error) {
 	}
 
 	c.setAck(c.conn.ConnectionState().NegotiatedProtocol == protoAck)
-	c.rewinded.Store(false)
 
 	return
 }
