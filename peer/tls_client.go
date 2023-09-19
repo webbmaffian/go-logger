@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -203,12 +204,16 @@ func (c *TlsClient) processAcknowledgements(ctx context.Context) {
 			l += r
 
 			if l == xidLen {
-				_, missing := c.ch.Ack(func(b []byte) bool {
+				found, resent := c.ch.Ack(func(b []byte) bool {
 					return bytes.Equal(c.entryId(b), buf[:])
 				})
 
-				if missing && c.rewinded.CompareAndSwap(false, true) {
-					c.ch.Rewind()
+				if !found {
+					c.debug("could not acknowledge ID %s", buf)
+
+					if resent > 0 {
+						c.debug("resent %d entries that failed acknowledgement", resent)
+					}
 				}
 
 				l = 0
@@ -335,9 +340,13 @@ func (c *TlsClient) error(err error) {
 	}
 }
 
-func (c *TlsClient) debug(msg string) {
+func (c *TlsClient) debug(msg string, args ...any) {
 	if c.opt.Debug != nil {
-		c.opt.Debug(msg)
+		if args == nil {
+			c.opt.Debug(msg)
+		} else {
+			c.opt.Debug(fmt.Sprintf(msg, args...))
+		}
 	}
 }
 
