@@ -13,6 +13,12 @@ type dummyWriter struct {
 	clock fastime.Fastime
 }
 
+func NewDummyWriter(ctx context.Context) Client {
+	return &dummyWriter{
+		clock: fastime.New().StartTimerD(ctx, time.Second),
+	}
+}
+
 func (w *dummyWriter) ProcessEntry(_ context.Context, _ *Entry) (err error) {
 	return
 }
@@ -22,5 +28,5 @@ func (w *dummyWriter) Now() time.Time {
 }
 
 func (w *dummyWriter) BucketId() uint32 {
-	return 1
+	return 0
 }
