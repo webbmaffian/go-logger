@@ -1,7 +1,6 @@
 package peer
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/binary"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/jpillora/backoff"
 	"github.com/kpango/fastime"
-	"github.com/rs/xid"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
 	"github.com/webbmaffian/go-mad/channel"
@@ -33,7 +31,7 @@ var _ logger.Client = (*TlsClient)(nil)
 type TlsClient struct {
 	conn     *tls.Conn
 	dialer   tls.Dialer
-	ch       *channel.AckByteChannel
+	ch       *channel.ByteChannel
 	clock    fastime.Fastime
 	opt      TlsClientOptions
 	backoff  backoff.Backoff
@@ -86,14 +84,13 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 		},
 	}
 
-	if c.ch, err = channel.NewAckByteChannel(opt.BufferFilepath, opt.BufferSize, logger.MaxEntrySize, true); err != nil {
+	if c.ch, err = channel.NewByteChannel(opt.BufferFilepath, opt.BufferSize, logger.MaxEntrySize, true); err != nil {
 		return
 	}
 
 	c.setupDialer()
 
 	go c.processEntries(ctx)
-	go c.processAcknowledgements(ctx)
 
 	go func() {
 		<-ctx.Done()
@@ -132,14 +129,18 @@ func (c *TlsClient) ProcessEntry(_ context.Context, e *logger.Entry) (err error)
 
 func (c *TlsClient) processEntries(ctx context.Context) {
 	for {
-		b, ok := c.ch.ReadOrBlock()
+		ok := c.ch.Wait()
 
 		if !ok {
 			break
 		}
 
 		c.ensureConnection(ctx)
-		c.processEntry(ctx, b)
+
+		if err := c.ch.ReadToCallback(c.processEntry, true); err != nil && err != channel.ErrEmpty {
+			c.error(err)
+			c.tryConnect(ctx)
+		}
 	}
 
 	if err := c.close(); err != nil {
@@ -147,7 +148,7 @@ func (c *TlsClient) processEntries(ctx context.Context) {
 	}
 }
 
-func (c *TlsClient) processEntry(ctx context.Context, b []byte) {
+func (c *TlsClient) processEntry(b []byte) error {
 	var bytesWritten int
 	size := c.entrySize(b)
 	b = b[:size]
@@ -161,74 +162,11 @@ func (c *TlsClient) processEntry(ctx context.Context, b []byte) {
 		}
 
 		if err != io.ErrShortWrite {
-			bytesWritten = 0
-			c.error(err)
-			c.tryConnect(ctx)
+			return err
 		}
 	}
 
-	c.expectAck()
-}
-
-// Signal that we are expecting an acknowledgement
-func (c *TlsClient) expectAck() {
-	c.cond.L.Lock()
-	defer c.cond.L.Unlock()
-
-	c.ackAwait++
-	c.cond.Signal()
-}
-
-func (c *TlsClient) awaitAck() {
-	c.cond.L.Lock()
-	defer c.cond.L.Unlock()
-
-	for c.ackAwait == 0 {
-		c.cond.Wait()
-	}
-
-	c.ackAwait--
-}
-
-func (c *TlsClient) processAcknowledgements(ctx context.Context) {
-	var buf xid.ID
-	l := 0
-
-	for {
-		c.awaitAck()
-
-		for {
-			r, err := c.conn.Read(buf[l:])
-			l += r
-
-			if l == xidLen {
-				found, resent := c.ch.Ack(func(b []byte) bool {
-					return bytes.Equal(c.entryId(b), buf[:])
-				})
-
-				if !found {
-					c.debug("could not acknowledge ID %s", buf)
-
-					if resent > 0 {
-						c.debug("resent %d entries that failed acknowledgement", resent)
-					}
-				}
-
-				l = 0
-				break
-			}
-
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					continue
-				}
-
-				c.error(err)
-				break
-			}
-		}
-	}
-
+	return nil
 }
 
 func (c *TlsClient) setupDialer() {
@@ -242,7 +180,7 @@ func (c *TlsClient) setupDialer() {
 			RootCAs:            c.opt.RootCa.X509Pool(),
 			MinVersion:         tls.VersionTLS13,
 			MaxVersion:         tls.VersionTLS13,
-			NextProtos:         []string{protoAck, proto},
+			NextProtos:         []string{proto},
 			ClientSessionCache: tls.NewLRUClientSessionCache(8),
 			Time:               c.clock.Now,
 		},

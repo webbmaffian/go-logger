@@ -7,7 +7,7 @@ require (
 	github.com/jpillora/backoff v1.0.0
 	github.com/kpango/fastime v1.1.6
 	github.com/rs/xid v1.4.0
-	github.com/webbmaffian/go-mad v0.10.0
+	github.com/webbmaffian/go-mad v0.11.1
 )
 
 require (
