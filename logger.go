@@ -81,8 +81,7 @@ func (l *Logger) log(severity Severity, message string, tags []string) (e *Entry
 	e.ttlEntry = l.ttlEntry
 	e.ttlMeta = l.ttlMeta
 	e.categoryId = l.categoryId
-	e.tagsCount = uint8(len(tags))
-	copy(e.tags[:], tags)
+	e.tagsCount = uint8(copy(e.tags[:], tags))
 
 	if tags != nil {
 		e.incLevel(_5_Tags)
