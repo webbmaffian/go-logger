@@ -12,5 +12,4 @@ type EntryProcessor interface {
 type Client interface {
 	EntryProcessor
 	Now() time.Time
-	BucketId() uint32
 }

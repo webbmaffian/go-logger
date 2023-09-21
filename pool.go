@@ -2,7 +2,6 @@ package logger
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/rs/xid"
@@ -50,14 +49,6 @@ func NewPool(client Client, options ...PoolOptions) (*Pool, error) {
 	}
 
 	opt.setDefaults()
-
-	if opt.BucketId == 0 {
-		opt.BucketId = client.BucketId()
-
-		if opt.BucketId == 0 {
-			return nil, errors.New("bucket ID could not be determined by certificate - please provide it in PoolOptions")
-		}
-	}
 
 	return &Pool{
 		client: client,
