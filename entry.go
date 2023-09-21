@@ -667,6 +667,24 @@ func (e *Entry) Meta(key string, value any) *Entry {
 	return e
 }
 
+// Pass eighter a `map[string]any` or `map[string]string`, and all key-value pairs
+// will be added as meta. Chainable.
+func (e *Entry) MetaFromMap(m any) *Entry {
+	switch m := m.(type) {
+	case map[string]any:
+		for k, v := range m {
+			e.Meta(k, v)
+		}
+
+	case map[string]string:
+		for k, v := range m {
+			e.Meta(k, v)
+		}
+	}
+
+	return e
+}
+
 func (e *Entry) Metric(key string, value int32) *Entry {
 	e.incLevel(_6_Metric)
 
