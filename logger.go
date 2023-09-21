@@ -32,46 +32,46 @@ func (l *Logger) Drop() {
 }
 
 // System is unusable - a panic condition
-func (l *Logger) Emerg(message string, tags ...string) (e *Entry) {
+func (l *Logger) Emerg(message string, tags ...any) (e *Entry) {
 	return l.log(EMERG, message, tags)
 }
 
 // Action must be taken immediately, e.g. corrupted system database, or backup failures
-func (l *Logger) Alert(message string, tags ...string) (e *Entry) {
+func (l *Logger) Alert(message string, tags ...any) (e *Entry) {
 	return l.log(ALERT, message, tags)
 }
 
 // Critical condition that prevents a specific task, e.g. fatal error
-func (l *Logger) Crit(message string, tags ...string) (e *Entry) {
+func (l *Logger) Crit(message string, tags ...any) (e *Entry) {
 	return l.log(CRIT, message, tags)
 }
 
 // Non-critical errors, but that must be fixed
-func (l *Logger) Err(message string, tags ...string) (e *Entry) {
+func (l *Logger) Err(message string, tags ...any) (e *Entry) {
 	return l.log(ERR, message, tags)
 }
 
 // Warnings about unexpected conditions that might lead to errors further on
-func (l *Logger) Warning(message string, tags ...string) (e *Entry) {
+func (l *Logger) Warning(message string, tags ...any) (e *Entry) {
 	return l.log(WARNING, message, tags)
 }
 
 // Normal but significant conditions
-func (l *Logger) Notice(message string, tags ...string) (e *Entry) {
+func (l *Logger) Notice(message string, tags ...any) (e *Entry) {
 	return l.log(NOTICE, message, tags)
 }
 
 // Informational events of normal operations, e.g. taken actions or user errors
-func (l *Logger) Info(message string, tags ...string) (e *Entry) {
+func (l *Logger) Info(message string, tags ...any) (e *Entry) {
 	return l.log(INFO, message, tags)
 }
 
 // Helpful information for troubleshooting
-func (l *Logger) Debug(message string, tags ...string) (e *Entry) {
+func (l *Logger) Debug(message string, tags ...any) (e *Entry) {
 	return l.log(DEBUG, message, tags)
 }
 
-func (l *Logger) log(severity Severity, message string, tags []string) (e *Entry) {
+func (l *Logger) log(severity Severity, message string, tags []any) (e *Entry) {
 	e = l.pool.Entry()
 	e.bucketId = l.pool.opt.BucketId
 	e.logger = l
@@ -81,12 +81,10 @@ func (l *Logger) log(severity Severity, message string, tags []string) (e *Entry
 	e.ttlEntry = l.ttlEntry
 	e.ttlMeta = l.ttlMeta
 	e.categoryId = l.categoryId
-	e.tagsCount = uint8(copy(e.tags[:], tags))
+	e.incLevel(_4_CategoryId)
 
 	if tags != nil {
-		e.incLevel(_5_Tags)
-	} else if e.categoryId != 0 {
-		e.incLevel(_4_CategoryId)
+		e.Tag(tags)
 	}
 
 	return
@@ -105,16 +103,30 @@ func (l *Logger) Cat(categoryId uint8) *Logger {
 }
 
 // Set tags for this logger. All entries created from this logger will have these tags appended.
-func (l *Logger) Tag(tags ...string) *Logger {
-	l.tags = append(l.tags, tags...)
+func (l *Logger) Tag(tags ...any) *Logger {
+	for i := range tags {
+		if len(l.tags) >= MaxTagsCount {
+			break
+		}
+
+		if tags[i] == "" {
+			continue
+		}
+
+		l.tags = append(l.tags, truncate(stringify(tags[i]), MaxTagSize))
+	}
 
 	return l
 }
 
+func (e *Logger) MetaBlob(value any) *Logger {
+	return e.Meta("_", value)
+}
+
 // Set meta data for this logger. All entries created from this logger will have these meta data appended.
-func (l *Logger) Meta(key string, value string) *Logger {
+func (l *Logger) Meta(key string, value any) *Logger {
 	l.metaKeys = append(l.metaKeys, truncate(key, MaxMetaKeySize))
-	l.metaValues = append(l.metaValues, truncate(key, MaxMetaKeySize))
+	l.metaValues = append(l.metaValues, truncate(stringify(value), MaxMetaValueSize))
 
 	return l
 }
