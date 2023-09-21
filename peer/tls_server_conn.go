@@ -22,6 +22,7 @@ type tlsServerConn struct {
 	clock          fastime.Fastime
 	entry          *logger.Entry
 	conn           *tls.Conn
+	log            *logger.Logger
 	clientTimeout  time.Duration
 	noCopy         bool
 	ack            bool
@@ -75,7 +76,11 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 		return
 	}
 
-	return conn.entryProc.ProcessEntry(ctx, conn.entry)
+	if err = conn.entryProc.ProcessEntry(ctx, conn.entry); err != nil {
+		err = conn.log.Err("Failed to process entry %s", conn.entry.Read().Id()).MetaBlob(err.Error())
+	}
+
+	return
 }
 
 func (conn *tlsServerConn) sendAck() (err error) {

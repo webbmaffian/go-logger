@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kpango/fastime"
+	"github.com/rs/xid"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
 )
@@ -32,6 +33,7 @@ type TlsServerOptions struct {
 	ErrorHandler  func(err error)
 	Debug         func(msg string)
 	Clock         fastime.Fastime
+	Log           *logger.Logger
 	NoCopy        bool
 }
 
@@ -46,6 +48,11 @@ func (opt *TlsServerOptions) setDefaults(ctx context.Context) {
 
 	if opt.Clock == nil {
 		opt.Clock = fastime.New().StartTimerD(ctx, time.Second)
+	}
+
+	if opt.Log == nil {
+		pool, _ := logger.NewPool(logger.NewDummyWriter(ctx))
+		opt.Log = pool.Logger()
 	}
 }
 
@@ -87,7 +94,7 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 
 			cert := cs.PeerCertificates[0]
 
-			if cert.SerialNumber == nil {
+			if cert.SerialNumber == nil || cert.SerialNumber.BitLen() > 12*8 {
 				return logger.ErrInvalidSerialNumber
 			}
 
@@ -113,7 +120,7 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 		<-ctx.Done()
 
 		if err := s.listener.Close(); err != nil {
-			s.error(err)
+			s.opt.Log.Send(err)
 		}
 	}()
 
@@ -121,43 +128,53 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 }
 
 func (s *TlsServer) acceptConnections(ctx context.Context) {
+	s.opt.Log.Info("Starting TCP server at %s", s.opt.Address).Send()
+	defer s.opt.Log.Info("Stopping TCP server at %s", s.opt.Address).Send()
+
 	for {
 		conn, err := s.listener.Accept()
 
 		if errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
-			s.error(err)
+			s.opt.Log.Send(err)
 			continue
 		}
 
-		s.debug("incoming connection")
+		s.opt.Log.Debug("Incoming TCP connection from %s", conn.RemoteAddr()).Send()
 
 		if tlsConn, ok := conn.(*tls.Conn); ok {
 			go func(tlsConn *tls.Conn) {
-				if err := s.handleConnection(ctx, tlsConn); err != nil {
+				log := s.opt.Log.Logger().Tag(tlsConn.RemoteAddr())
+				defer log.Drop()
+
+				if err := s.handleConnection(ctx, tlsConn, log); err != nil {
 					if err == io.EOF {
-						s.debug("disconnected")
+						log.Debug("Connection closed by client").Send()
 					} else {
-						s.error(err)
+						log.Send(err)
 					}
 				}
 			}(tlsConn)
 		} else {
-			s.debug("expected TLS connection")
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				s.opt.Log.Notice(err.Error()).Tag(conn.RemoteAddr()).Send()
+			} else {
+				s.opt.Log.Notice("Connection not TLS - closed by server").Tag(conn.RemoteAddr()).Send()
+			}
+
 		}
 	}
 }
 
-func (s *TlsServer) handleConnection(ctx context.Context, tlsConn *tls.Conn) (err error) {
+func (s *TlsServer) handleConnection(ctx context.Context, tlsConn *tls.Conn, log *logger.Logger) (err error) {
 	defer tlsConn.Close()
 
 	if err = tlsConn.HandshakeContext(ctx); err != nil {
 		return
 	}
 
-	conn, err := s.acquireConn(tlsConn)
+	conn, err := s.acquireConn(tlsConn, log)
 
 	if err != nil {
 		return
@@ -168,7 +185,7 @@ func (s *TlsServer) handleConnection(ctx context.Context, tlsConn *tls.Conn) (er
 	return conn.listen(ctx)
 }
 
-func (s *TlsServer) acquireConn(tlsConn *tls.Conn) (conn *tlsServerConn, err error) {
+func (s *TlsServer) acquireConn(tlsConn *tls.Conn, log *logger.Logger) (conn *tlsServerConn, err error) {
 	state := tlsConn.ConnectionState()
 
 	if state.PeerCertificates == nil {
@@ -188,9 +205,14 @@ func (s *TlsServer) acquireConn(tlsConn *tls.Conn) (conn *tlsServerConn, err err
 	}
 
 	cert := state.PeerCertificates[0]
+
+	var certId xid.ID
+	cert.SerialNumber.FillBytes(certId[:])
+
 	conn.validBucketIds = cert.SubjectKeyId
 	conn.conn = tlsConn
 	conn.ack = state.NegotiatedProtocol == protoAck
+	conn.log = log.Tag(certId)
 
 	return
 }
@@ -199,6 +221,7 @@ func (s *TlsServer) releaseConn(conn *tlsServerConn) {
 	conn.conn.Close()
 	conn.conn = nil
 	conn.validBucketIds = nil
+	conn.log = nil
 	s.connPool.Put(conn)
 }
 
