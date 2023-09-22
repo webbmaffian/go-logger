@@ -124,17 +124,6 @@ func (c *TlsClient) close() error {
 	return c.ch.Close()
 }
 
-func (c *TlsClient) BucketId() uint32 {
-	cert, err := c.opt.Certificate.X509()
-
-	// If there is exactly one bucket ID in the certificate (4 bytes uint32)
-	if err == nil && len(cert.SubjectKeyId) == 4 {
-		return binary.BigEndian.Uint32(cert.SubjectKeyId)
-	}
-
-	return 0
-}
-
 func (c *TlsClient) Now() time.Time {
 	return c.clock.Now()
 }
