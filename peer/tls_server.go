@@ -141,12 +141,14 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 			continue
 		}
 
-		s.opt.Log.Debug("Incoming TCP connection from %s", conn.RemoteAddr()).Send()
+		s.opt.Log.Debug("Incoming TCP connection from %s", addrIp(conn.RemoteAddr())).Send()
 
 		if tlsConn, ok := conn.(*tls.Conn); ok {
 			go func(tlsConn *tls.Conn) {
-				log := s.opt.Log.Logger().Tag(tlsConn.RemoteAddr())
+				log := s.opt.Log.Logger().Tag(addrIp(tlsConn.RemoteAddr()))
 				defer log.Drop()
+
+				tlsConn.NetConn()
 
 				if err := s.handleConnection(ctx, tlsConn, log); err != nil {
 					if err == io.EOF {
@@ -158,9 +160,9 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 			}(tlsConn)
 		} else {
 			if err := conn.Close(); err != nil {
-				s.opt.Log.Notice(err.Error()).Tag(conn.RemoteAddr()).Send()
+				s.opt.Log.Notice(err.Error()).Tag(addrIp(conn.RemoteAddr())).Send()
 			} else {
-				s.opt.Log.Notice("Connection not TLS - closed by server").Tag(conn.RemoteAddr()).Send()
+				s.opt.Log.Notice("Connection not TLS - closed by server").Tag(addrIp(conn.RemoteAddr())).Send()
 			}
 
 		}
@@ -182,7 +184,20 @@ func (s *TlsServer) handleConnection(ctx context.Context, tlsConn *tls.Conn, log
 
 	defer s.releaseConn(conn)
 
-	return conn.listen(ctx)
+	err = conn.listen(ctx)
+
+	if conn.entriesReceived > 0 || conn.pingsReceived > 0 {
+		log.Info("Finished connection").
+			Metric("entriesReceived", conn.entriesReceived).
+			Metric("entriesSucceeded", conn.entriesSucceeded).
+			Metric("pingsReceived", conn.pingsReceived).
+			Metric("pongsSent", conn.pongsSent).
+			Metric("secondsConnected", int32(s.opt.Clock.UnixNow()-conn.timeConnected)).
+			Metric("secondsIdle", int32(s.opt.Clock.UnixNow()-conn.timeLastActive)).
+			Send()
+	}
+
+	return
 }
 
 func (s *TlsServer) acquireConn(tlsConn *tls.Conn, log *logger.Logger) (conn *tlsServerConn, err error) {
@@ -213,6 +228,8 @@ func (s *TlsServer) acquireConn(tlsConn *tls.Conn, log *logger.Logger) (conn *tl
 	conn.conn = tlsConn
 	conn.ack = state.NegotiatedProtocol == protoAck
 	conn.log = log.Tag(certId)
+	conn.timeConnected = s.opt.Clock.UnixNow()
+	conn.timeLastActive = conn.timeConnected
 
 	return
 }
@@ -222,17 +239,9 @@ func (s *TlsServer) releaseConn(conn *tlsServerConn) {
 	conn.conn = nil
 	conn.validBucketIds = nil
 	conn.log = nil
+	conn.pingsReceived = 0
+	conn.pongsSent = 0
+	conn.entriesReceived = 0
+	conn.entriesSucceeded = 0
 	s.connPool.Put(conn)
-}
-
-func (c *TlsServer) error(err error) {
-	if c.opt.ErrorHandler != nil {
-		c.opt.ErrorHandler(err)
-	}
-}
-
-func (c *TlsServer) debug(msg string) {
-	if c.opt.Debug != nil {
-		c.opt.Debug(msg)
-	}
 }

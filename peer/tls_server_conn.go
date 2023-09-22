@@ -16,16 +16,22 @@ import (
 var ponged = errors.New("ponged")
 
 type tlsServerConn struct {
-	buf            [logger.MaxEntrySize]byte
-	validBucketIds []byte
-	entryProc      logger.EntryProcessor
-	clock          fastime.Fastime
-	entry          *logger.Entry
-	conn           *tls.Conn
-	log            *logger.Logger
-	clientTimeout  time.Duration
-	noCopy         bool
-	ack            bool
+	buf              [logger.MaxEntrySize]byte
+	validBucketIds   []byte
+	entryProc        logger.EntryProcessor
+	clock            fastime.Fastime
+	entry            *logger.Entry
+	conn             *tls.Conn
+	log              *logger.Logger
+	clientTimeout    time.Duration
+	timeConnected    int64
+	timeLastActive   int64
+	pingsReceived    int32
+	pongsSent        int32
+	entriesReceived  int32
+	entriesSucceeded int32
+	noCopy           bool
+	ack              bool
 }
 
 func (conn *tlsServerConn) listen(ctx context.Context) (err error) {
@@ -49,16 +55,22 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 		return
 	}
 
+	conn.timeLastActive = conn.clock.UnixNow()
+
 	size := binary.BigEndian.Uint16(conn.buf[:2])
 
 	// Sending two empty bytes is a ping - answer with a 1 byte pong
 	if size == 0 {
+		conn.pingsReceived++
 		_, err = conn.conn.Write([]byte{1})
 
 		if err == nil {
+			conn.pongsSent++
 			return ponged
 		}
 	}
+
+	conn.entriesReceived++
 
 	if size < 6 {
 		return logger.ErrTooShort
@@ -78,6 +90,8 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 
 	if err = conn.entryProc.ProcessEntry(ctx, conn.entry); err != nil {
 		err = conn.log.Err("Failed to process entry %s", conn.entry.Read().Id()).MetaBlob(err.Error())
+	} else {
+		conn.entriesSucceeded++
 	}
 
 	return
