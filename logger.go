@@ -84,7 +84,7 @@ func (l *Logger) log(severity Severity, message string, tags []any) (e *Entry) {
 	e.incLevel(_4_CategoryId)
 
 	if tags != nil {
-		e.Tag(tags)
+		e.Tag(tags...)
 	}
 
 	return
