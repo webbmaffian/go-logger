@@ -43,7 +43,7 @@ func (opt *TlsServerOptions) setDefaults(ctx context.Context) {
 	}
 
 	if opt.ClientTimeout <= 0 {
-		opt.ClientTimeout = time.Minute * 10
+		opt.ClientTimeout = time.Minute
 	}
 
 	if opt.Clock == nil {
