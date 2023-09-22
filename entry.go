@@ -743,9 +743,13 @@ func (e *Entry) MetaTTL(days uint16) *Entry {
 	return e
 }
 
-// Sends the entry to the log and returns its unique ID.
-func (e *Entry) Send() (id xid.ID) {
+// Sends the entry to the log and returns its unique ID. Optionally adjust the category ID.
+func (e *Entry) Send(cat ...uint8) (id xid.ID) {
 	id = e.id
+
+	if cat != nil {
+		e.Cat(cat[0])
+	}
 
 	// Any tags, meta and metrics are appended from the logger in ths stage
 	if e.logger != nil {
