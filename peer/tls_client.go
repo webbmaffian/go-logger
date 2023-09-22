@@ -29,15 +29,14 @@ const xidLen = 12
 var _ logger.Client = (*TlsClient)(nil)
 
 type TlsClient struct {
-	conn     *tls.Conn
-	dialer   tls.Dialer
-	ch       *channel.ByteChannel
-	clock    fastime.Fastime
-	opt      TlsClientOptions
-	backoff  backoff.Backoff
-	ack      bool
-	ackAwait int
-	cond     sync.Cond
+	conn    *tls.Conn
+	dialer  tls.Dialer
+	ch      *channel.ByteChannel
+	clock   fastime.Fastime
+	opt     TlsClientOptions
+	backoff backoff.Backoff
+	ack     bool
+	cond    sync.Cond
 }
 
 type TlsClientOptions struct {
@@ -98,6 +97,27 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	}()
 
 	return
+}
+
+func (c *TlsClient) WaitUntilSent(ctx context.Context) error {
+	return c.ch.WaitForSync(ctx)
+}
+
+// Close the client gracefully. Will block until closed, or the context got cancelled.
+func (c *TlsClient) Close(ctx context.Context) (err error) {
+
+	// Ensure that no more entries are written
+	c.ch.CloseWriting()
+
+	// Wait until all written entries have been sent, or abort on context cancellation
+	if err = c.WaitUntilSent(ctx); err != nil {
+		return
+	}
+
+	// Close channel (and memory-mapped file)
+	c.close()
+
+	return c.conn.Close()
 }
 
 func (c *TlsClient) close() error {
@@ -287,9 +307,4 @@ func (c *TlsClient) debug(msg string, args ...any) {
 
 func (*TlsClient) entrySize(b []byte) int {
 	return int(binary.BigEndian.Uint16(b[:2]))
-}
-
-// XID
-func (*TlsClient) entryId(b []byte) []byte {
-	return b[6 : 6+xidLen]
 }

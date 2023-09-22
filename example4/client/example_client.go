@@ -183,8 +183,17 @@ func startLiveClient(ctx context.Context) (err error) {
 	wg.Wait()
 	log.Println("done")
 
-	log.Println("waiting 3 seconds")
-	time.Sleep(time.Second * 3)
+	if tlsClient, ok := client.(*peer.TlsClient); ok {
+		log.Println("closing gracefully...")
+		// ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+		// defer cancel()
+		err = tlsClient.Close(ctx)
+	}
+
+	log.Println("done waiting")
+
+	// log.Println("waiting 3 seconds")
+	// time.Sleep(time.Second * 3)
 
 	return
 }

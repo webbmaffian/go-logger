@@ -14,5 +14,13 @@ github.com/webbmaffian/go-mad v0.12.0 h1:4NrLgleLpAjME2YJ8tRnX4x3eIGAZTZkegsINpo
 github.com/webbmaffian/go-mad v0.12.0/go.mod h1:3WjgZPY8EJiBd7/VeXreoDPf8mdN+awtMdRuClduN6g=
 github.com/webbmaffian/go-mad v0.13.0 h1:UHZnPpTaSC0dRS5GFdq1mjLXLomCYcg+UoHksXy0RnY=
 github.com/webbmaffian/go-mad v0.13.0/go.mod h1:3WjgZPY8EJiBd7/VeXreoDPf8mdN+awtMdRuClduN6g=
+github.com/webbmaffian/go-mad v0.14.0 h1:p8QPcyWfb6tJRbwq3DAk/lZZHeFS4rKzFpqSG1xjVkg=
+github.com/webbmaffian/go-mad v0.14.0/go.mod h1:3WjgZPY8EJiBd7/VeXreoDPf8mdN+awtMdRuClduN6g=
+github.com/webbmaffian/go-mad v0.14.1 h1:eP2B1P0JE7FtHmWZbUXQurGpBKvSZKBPT8acqFxEIQo=
+github.com/webbmaffian/go-mad v0.14.1/go.mod h1:3WjgZPY8EJiBd7/VeXreoDPf8mdN+awtMdRuClduN6g=
+github.com/webbmaffian/go-mad v0.14.2 h1:7SYpVH1TtRzUzB4GzyaZ5NSF5W+MOLpPnEcM6+q3Otw=
+github.com/webbmaffian/go-mad v0.14.2/go.mod h1:3WjgZPY8EJiBd7/VeXreoDPf8mdN+awtMdRuClduN6g=
+github.com/webbmaffian/go-mad v0.14.3 h1:M5KD/VKlwbpS9s1456M5//wm3H4pX/SeV9a0dPMEwPw=
+github.com/webbmaffian/go-mad v0.14.3/go.mod h1:3WjgZPY8EJiBd7/VeXreoDPf8mdN+awtMdRuClduN6g=
 golang.org/x/sys v0.6.0 h1:MVltZSvRTcU2ljQOhs94SXPftV6DCNnZViHeQps87pQ=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
