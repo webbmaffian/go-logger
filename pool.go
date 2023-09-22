@@ -99,3 +99,11 @@ func (pool *Pool) Send(err error) (id xid.ID) {
 	pool.client.ProcessEntry(context.Background(), e)
 	return
 }
+
+func (pool *Pool) CloseClient(ctx context.Context) error {
+	if cli, ok := pool.client.(ClientCloser); ok {
+		return cli.Close(ctx)
+	}
+
+	return nil
+}

@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"context"
+
 	"github.com/rs/xid"
 )
 
@@ -165,4 +167,9 @@ func (l *Logger) Logger() (l2 *Logger) {
 	l2.ttlEntry = l.ttlEntry
 	l2.ttlMeta = l.ttlMeta
 	return l2
+}
+
+// Gracefully close the client.
+func (l *Logger) CloseClient(ctx context.Context) error {
+	return l.pool.CloseClient(ctx)
 }

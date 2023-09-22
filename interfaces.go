@@ -13,3 +13,8 @@ type Client interface {
 	EntryProcessor
 	Now() time.Time
 }
+
+type ClientCloser interface {
+	Client
+	Close(context.Context) error
+}
