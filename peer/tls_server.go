@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/kpango/fastime"
-	"github.com/rs/xid"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
 )
@@ -94,7 +94,7 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 
 			cert := cs.PeerCertificates[0]
 
-			if cert.SerialNumber == nil || cert.SerialNumber.BitLen() > 12*8 {
+			if cert.SerialNumber == nil || cert.SerialNumber.BitLen() > 16*8 {
 				return logger.ErrInvalidSerialNumber
 			}
 
@@ -206,7 +206,7 @@ func (s *TlsServer) acquireConn(tlsConn *tls.Conn, log *logger.Logger) (conn *tl
 
 	cert := state.PeerCertificates[0]
 
-	var certId xid.ID
+	var certId uuid.UUID
 	cert.SerialNumber.FillBytes(certId[:])
 
 	conn.validBucketIds = cert.SubjectKeyId
