@@ -14,12 +14,14 @@ import (
 	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
+	"github.com/webbmaffian/go-logger/debug"
 )
 
 type TlsServer struct {
-	opt      TlsServerOptions
-	connPool sync.Pool
-	listener net.Listener
+	debugSocket *debug.Writer
+	opt         TlsServerOptions
+	connPool    sync.Pool
+	listener    net.Listener
 }
 
 type TlsServerOptions struct {
@@ -32,6 +34,7 @@ type TlsServerOptions struct {
 	Auth          func(ctx context.Context, x509Cert *x509.Certificate) (err error)
 	ErrorHandler  func(err error)
 	Debug         func(msg string)
+	DebugUDP      string
 	Clock         fastime.Fastime
 	Log           *logger.Logger
 	NoCopy        bool
@@ -79,6 +82,10 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 		opt: opt,
 	}
 
+	if opt.DebugUDP != "" {
+		s.debugSocket = debug.NewWriter(opt.DebugUDP)
+	}
+
 	s.listener = tls.NewListener(netListener, &tls.Config{
 		Time:         s.opt.Clock.Now,
 		MinVersion:   tls.VersionTLS13,
@@ -121,6 +128,10 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 
 		if err := s.listener.Close(); err != nil {
 			s.opt.Log.Send(err)
+		}
+
+		if s.debugSocket != nil {
+			s.debugSocket.Close()
 		}
 	}()
 
@@ -230,6 +241,7 @@ func (s *TlsServer) acquireConn(tlsConn *tls.Conn, log *logger.Logger) (conn *tl
 	conn.log = log.Tag(certId)
 	conn.timeConnected = s.opt.Clock.UnixNow()
 	conn.timeLastActive = conn.timeConnected
+	conn.debugSocket = s.debugSocket
 
 	return
 }
@@ -243,5 +255,6 @@ func (s *TlsServer) releaseConn(conn *tlsServerConn) {
 	conn.pongsSent = 0
 	conn.entriesReceived = 0
 	conn.entriesSucceeded = 0
+	conn.debugSocket = nil
 	s.connPool.Put(conn)
 }

@@ -19,19 +19,19 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
-	// var certs example3.Certs
+	var certs example3.Certs
 
-	// if err := certs.LoadOrCreate("../certs", "localhost"); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// if err := startClient(ctx, &certs); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	if err := startLiveClient(ctx); err != nil {
+	if err := certs.LoadOrCreate("../certs", "localhost"); err != nil {
 		log.Fatal(err)
 	}
+
+	if err := startClient(ctx, &certs); err != nil {
+		log.Fatal(err)
+	}
+
+	// if err := startLiveClient(ctx); err != nil {
+	// 	log.Fatal(err)
+	// }
 }
 
 func startClient(ctx context.Context, certs *example3.Certs) (err error) {
@@ -58,7 +58,9 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 		return
 	}
 
-	if pool, err = logger.NewPool(client); err != nil {
+	if pool, err = logger.NewPool(client, logger.PoolOptions{
+		BucketId: 1684512816,
+	}); err != nil {
 		return
 	}
 
