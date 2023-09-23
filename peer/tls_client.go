@@ -31,7 +31,7 @@ var _ logger.Client = (*TlsClient)(nil)
 type TlsClient struct {
 	conn    *tls.Conn
 	dialer  tls.Dialer
-	ch      *channel.ByteChannel
+	ch      *channel.MemoryByteChannel
 	clock   fastime.Fastime
 	opt     TlsClientOptions
 	backoff backoff.Backoff
@@ -73,6 +73,7 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	}
 
 	c = &TlsClient{
+		ch:    channel.NewMemoryByteChannel(opt.BufferSize, logger.MaxEntrySize),
 		opt:   opt,
 		clock: fastime.New().StartTimerD(ctx, time.Second),
 		cond:  sync.Cond{L: &sync.Mutex{}},
@@ -81,10 +82,6 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 			Min:    time.Second,
 			Max:    time.Second * 64,
 		},
-	}
-
-	if c.ch, err = channel.NewByteChannel(opt.BufferFilepath, opt.BufferSize, logger.MaxEntrySize, true); err != nil {
-		return
 	}
 
 	c.setupDialer()
