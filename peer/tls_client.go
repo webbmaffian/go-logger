@@ -56,7 +56,7 @@ func (opt *TlsClientOptions) setDefaults() {
 	}
 
 	if opt.BufferSize <= 0 {
-		opt.BufferSize = 100
+		opt.BufferSize = 128
 	}
 }
 
