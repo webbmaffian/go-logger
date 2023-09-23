@@ -40,7 +40,6 @@ func startServer(ctx context.Context, certs *example3.Certs) (err error) {
 			os.Stdout.WriteString("\n")
 			log.Println("server:", msg)
 		},
-		DebugUDP: "localhost:1234",
 	}); err != nil {
 		return
 	}

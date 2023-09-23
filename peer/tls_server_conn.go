@@ -7,15 +7,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"net"
 	"time"
 
 	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger"
-	"github.com/webbmaffian/go-logger/debug"
 )
 
-var ponged = errors.New("ponged")
+var errPonged = errors.New("ponged")
 
 type tlsServerConn struct {
 	buf              [logger.MaxEntrySize]byte
@@ -25,7 +23,6 @@ type tlsServerConn struct {
 	entry            *logger.Entry
 	conn             *tls.Conn
 	log              *logger.Logger
-	debugSocket      *debug.Writer
 	clientTimeout    time.Duration
 	timeConnected    int64
 	timeLastActive   int64
@@ -63,43 +60,34 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 
 	// Sending two empty bytes is a ping - answer with a 1 byte pong
 	if size == 0 {
-		conn.debug("%15s -> ping", conn.ip())
 		conn.pingsReceived++
 		_, err = conn.conn.Write([]byte{1})
 
 		if err == nil {
 			conn.pongsSent++
-			return ponged
+			return errPonged
 		}
 	}
 
 	conn.entriesReceived++
 
 	if size < 6 {
-		conn.debug("%15s -> msg size %d dropped (%s)", conn.ip(), size, logger.ErrTooShort)
 		return logger.ErrTooShort
 	}
 
 	if _, err = io.ReadFull(conn.conn, conn.buf[2:size]); err != nil {
-		conn.debug("%15s -> msg size %d failed (%s)", conn.ip(), size, err)
 		return
 	}
 
-	conn.debug("%15s -> msg size %d: %v", conn.ip(), size, conn.buf[2:size])
-	conn.debug("%15s -> msg size %d: %s", conn.ip(), size, conn.buf[2:size])
-
 	if !conn.validBucketId() {
-		conn.debug("%15s -> msg size %d forbidden (%s)", conn.ip(), size, logger.ErrForbiddenBucket)
 		return logger.ErrForbiddenBucket
 	}
 
 	if err = conn.entry.Decode(conn.buf[:size], conn.noCopy); err != nil {
-		conn.debug("%15s -> msg size %d decoding failed (%s)", conn.ip(), size, err)
 		return
 	}
 
 	if err = conn.entryProc.ProcessEntry(ctx, conn.entry); err != nil {
-		conn.debug("%15s -> msg size %d processing failed (%s)", conn.ip(), size, err)
 		err = conn.log.Err("Failed to process entry %s", conn.entry.Read().Id()).MetaBlob(err.Error())
 	} else {
 		conn.entriesSucceeded++
@@ -140,14 +128,4 @@ func (conn *tlsServerConn) validBucketId() bool {
 	}
 
 	return false
-}
-
-func (conn *tlsServerConn) debug(format string, args ...any) {
-	if conn.debugSocket != nil {
-		conn.debugSocket.Write(format+"\n", args...)
-	}
-}
-
-func (conn *tlsServerConn) ip() net.IP {
-	return addrIp(conn.conn.RemoteAddr())
 }

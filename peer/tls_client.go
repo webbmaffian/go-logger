@@ -40,21 +40,16 @@ type TlsClient struct {
 }
 
 type TlsClientOptions struct {
-	Address        string           // Host and port (e.g. 127.0.0.1:4610) that the client should connect to.
-	PrivateKey     auth.PrivateKey  // Private key, used for encryption and authentication.
-	Certificate    auth.Certificate // Certificate, used for encryption and authentication.
-	RootCa         auth.Certificate // Root certificate authority, used for authenticating the server.
-	BufferFilepath string           // Used for the queue buffer of log entries. Default: logs.bin
-	BufferSize     int              // Number of entries in the buffer. Default: 100
-	ErrorHandler   func(err error)  // Callback for non-fatal errors.
-	Debug          func(msg string) // Callback for debugging events.
+	Address      string           // Host and port (e.g. 127.0.0.1:4610) that the client should connect to.
+	PrivateKey   auth.PrivateKey  // Private key, used for encryption and authentication.
+	Certificate  auth.Certificate // Certificate, used for encryption and authentication.
+	RootCa       auth.Certificate // Root certificate authority, used for authenticating the server.
+	BufferSize   int              // Number of entries in the buffer. Default: 100
+	ErrorHandler func(err error)  // Callback for non-fatal errors.
+	Debug        func(msg string) // Callback for debugging events.
 }
 
 func (opt *TlsClientOptions) setDefaults() {
-	if opt.BufferFilepath == "" {
-		opt.BufferFilepath = "logs.bin"
-	}
-
 	if opt.BufferSize <= 0 {
 		opt.BufferSize = 128
 	}
