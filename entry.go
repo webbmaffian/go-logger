@@ -57,7 +57,7 @@ import (
 type level uint8
 
 const (
-	MaxEntrySize          = 65_507 // Should fit in a UDP packet
+	MaxEntrySize          = math.MaxUint16
 	MaxMessageSize        = math.MaxUint8
 	MaxMetaKeySize        = math.MaxUint8
 	MaxTagSize            = math.MaxUint8
