@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/rs/xid"
@@ -36,26 +37,23 @@ func main() {
 func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 	var (
 		pool   *logger.Pool
-		client logger.Client
+		client *peer.TlsClient
 	)
 
 	log.Println("starting client")
 
 	if client, err = peer.NewTlsClient(ctx, peer.TlsClientOptions{
-		Address:     "localhost:4610",
+		Address:     "127.0.0.1:4610",
 		PrivateKey:  certs.ClientKey,
 		Certificate: certs.ClientCert,
 		RootCa:      certs.RootCa,
 		BufferSize:  100,
-		ErrorHandler: func(err error) {
-			log.Println("client:", err)
-		},
-		Debug: func(msg string) {
-			log.Println("client:", msg)
-		},
+		Debug:       peer.DebuggerStdout(),
 	}); err != nil {
 		return
 	}
+
+	// defer client.Close(ctx)
 
 	if pool, err = logger.NewPool(client, logger.PoolOptions{
 		// BucketId: 1684512816,
@@ -70,31 +68,35 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 	// log.Println("waiting 3 seconds")
 	// time.Sleep(time.Second * 3)
 
-	log.Println("waiting 3 seconds")
-	time.Sleep(time.Second * 3)
+	// log.Println("waiting 3 seconds")
+	// time.Sleep(time.Second * 3)
 
-	for i := 0; i < 10; i++ {
-		if err = ctx.Err(); err != nil {
-			return
+	if true {
+		for i := 0; i < 10; i++ {
+			if err = ctx.Err(); err != nil {
+				return
+			}
+
+			entry := l.Debug("msg " + strconv.Itoa(i+1))
+			// entry := l.Err("Foobar: %d with 50%% off", "123").Cat(1).Tag("127.0.0.1", "foo@bar.baz", 403).Meta("Specific error", "räksmörgås")
+			entry.Send()
+
+			os.Stdout.WriteString(fmt.Sprintf("Sent %4d\r", i+1))
+			time.Sleep(time.Second * 6)
+
+			// log.Println("\n" + example3.FormatEntry(entry, "<"))
+			// time.Sleep(time.Second)
 		}
-
-		// entry := l.Debug("msg %s", strconv.Itoa(i))
-		entry := l.Err("Foobar: %d with 50%% off", "123").Cat(1).Tag("127.0.0.1", "foo@bar.baz", 403).Meta("Specific error", "räksmörgås")
-		entry.Send()
-
-		os.Stdout.WriteString(fmt.Sprintf("Sent %4d\r", i+1))
-		// time.Sleep(time.Millisecond * 1)
-
-		// log.Println("\n" + example3.FormatEntry(entry, "<"))
-		// time.Sleep(time.Second)
 	}
 
-	os.Stdout.WriteString("\n")
+	// os.Stdout.WriteString("\n")
 
-	log.Println("done")
+	// log.Println("done writing entries")
 
-	log.Println("waiting 3 seconds")
-	time.Sleep(time.Second * 3)
+	// log.Println("waiting 3 seconds")
+	// time.Sleep(time.Second * 3)
+
+	<-ctx.Done()
 
 	return
 }
@@ -126,12 +128,6 @@ func startLiveClient(ctx context.Context) (err error) {
 		Certificate: certs.ClientCert,
 		RootCa:      certs.RootCa,
 		BufferSize:  128,
-		ErrorHandler: func(err error) {
-			log.Println("client:", err)
-		},
-		Debug: func(msg string) {
-			log.Println("client:", msg)
-		},
 	}); err != nil {
 		return
 	}

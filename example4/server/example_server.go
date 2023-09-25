@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/webbmaffian/go-logger/example3"
 	"github.com/webbmaffian/go-logger/peer"
@@ -24,22 +24,16 @@ func main() {
 }
 
 func startServer(ctx context.Context, certs *example3.Certs) (err error) {
-	log.Println("starting server")
+	// log.Println("starting server")
 
 	if _, err = peer.NewTlsServer(ctx, peer.TlsServerOptions{
-		Address:     "localhost:4610",
-		PrivateKey:  certs.ServerKey,
-		Certificate: certs.ServerCert,
-		RootCa:      certs.RootCa,
-		EntryProc:   &entryEchoer{},
-		ErrorHandler: func(err error) {
-			os.Stdout.WriteString("\n")
-			log.Println("server:", err)
-		},
-		Debug: func(msg string) {
-			os.Stdout.WriteString("\n")
-			log.Println("server:", msg)
-		},
+		Address:       "127.0.0.1:4610",
+		PrivateKey:    certs.ServerKey,
+		Certificate:   certs.ServerCert,
+		RootCa:        certs.RootCa,
+		EntryProc:     &entryEchoer{},
+		Debug:         peer.DebuggerStdout(),
+		ClientTimeout: time.Second * 10,
 	}); err != nil {
 		return
 	}

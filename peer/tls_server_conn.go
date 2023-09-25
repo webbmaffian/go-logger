@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
+	"net"
 	"time"
 
 	"github.com/kpango/fastime"
@@ -24,6 +24,7 @@ type tlsServerConn struct {
 	entry            *logger.Entry
 	conn             *tls.Conn
 	log              *logger.Logger
+	debug            Debugger
 	clientTimeout    time.Duration
 	timeConnected    int64
 	timeLastActive   int64
@@ -38,10 +39,11 @@ type tlsServerConn struct {
 func (conn *tlsServerConn) listen(ctx context.Context) (err error) {
 	for {
 		if err = conn.handleEntry(ctx); err != nil {
-			log.Println(err)
 			if conn.ack {
-				if err := conn.sendAck(respAckNOK); err != nil {
-					conn.log.Send(err)
+				if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+					if err := conn.sendAck(respAckNOK); err != nil {
+						conn.log.Send(err)
+					}
 				}
 			}
 
@@ -86,6 +88,8 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 	if _, err = io.ReadFull(conn.conn, conn.buf[2:size]); err != nil {
 		return
 	}
+
+	conn.debug.Info("Received %d bytes: %v", size, conn.buf[:size])
 
 	if !conn.validBucketId() {
 		return logger.ErrForbiddenBucket

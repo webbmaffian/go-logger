@@ -5,9 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"syscall"
@@ -49,8 +47,7 @@ type TlsClientOptions struct {
 	BufferFilepath   string           // Used for the queue buffer of log entries. Default: logs.bin
 	BufferSize       int              // Number of entries in the buffer. Default: 100
 	ServerAckTimeout time.Duration
-	ErrorHandler     func(err error)  // Callback for non-fatal errors.
-	Debug            func(msg string) // Callback for debugging events.
+	Debug            Debugger
 }
 
 func (opt *TlsClientOptions) setDefaults() {
@@ -64,6 +61,10 @@ func (opt *TlsClientOptions) setDefaults() {
 
 	if opt.ServerAckTimeout <= 0 {
 		opt.ServerAckTimeout = time.Second * 3
+	}
+
+	if opt.Debug == nil {
+		opt.Debug = nilDebugger{}
 	}
 }
 
@@ -92,6 +93,8 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	if c.ch, err = channel.NewAckByteChannel(opt.BufferFilepath, opt.BufferSize, logger.MaxEntrySize, true); err != nil {
 		return
 	}
+
+	c.opt.Debug.Debug("%d len, %d unread, %d unack", c.ch.Len(), c.ch.Unread(), c.ch.AwaitingAck())
 
 	c.setupDialer()
 
@@ -148,24 +151,26 @@ func (c *TlsClient) ProcessEntry(_ context.Context, e *logger.Entry) (err error)
 }
 
 func (c *TlsClient) processEntries(ctx context.Context) {
+	c.opt.Debug.Debug("Processing entries...")
+
 	for {
 		_, err := c.ch.Wait()
 
 		if err != nil {
-			c.error(err)
+			c.opt.Debug.Error(err)
 			break
 		}
 
 		c.ensureConnection(ctx)
 
 		if err := c.ch.ReadToCallback(c.processEntry, true); err != nil && err != channel.ErrEmpty {
-			c.error(err)
+			c.opt.Debug.Error(err)
 			c.disconnect()
 		}
 	}
 
 	if err := c.close(); err != nil {
-		c.error(err)
+		c.opt.Debug.Error(err)
 	}
 }
 
@@ -187,32 +192,40 @@ func (c *TlsClient) processEntry(b []byte) error {
 		}
 	}
 
+	c.opt.Debug.Info("Sent %d bytes: %v", size, b)
+
 	return nil
 }
 
 func (c *TlsClient) processResponses() {
+	c.opt.Debug.Debug("Processing responses...")
+
 	var buf [1]byte
 
 	for {
 		_, err := c.ch.WaitUntilRead()
 
 		if err != nil {
-			c.error(err)
+			c.opt.Debug.Error(err)
 			break
 		}
 
+		c.opt.Debug.Debug("Wake up - message was sent")
+
 		if !c.ack || c.conn == nil {
+			c.opt.Debug.Notice("Skipping: ack %t, conn %t", c.ack, c.conn != nil)
 			continue
 		}
 
+		c.opt.Debug.Debug("Waiting up to %.2f seconds for acknowledgement...", c.opt.ServerAckTimeout.Seconds())
 		c.conn.SetReadDeadline(c.clock.Now().Add(c.opt.ServerAckTimeout))
 		n, err := c.conn.Read(buf[:])
 
-		if err != nil && err != io.EOF {
+		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				c.debug(err.Error())
-			} else {
-				c.error(err)
+				c.opt.Debug.Notice("No acknowledgement received in time - disconnecting and rewinding.")
+			} else if err != io.EOF {
+				c.opt.Debug.Notice("Error: %s - disconnecting and rewinding.", err.Error())
 			}
 
 			c.disconnect()
@@ -226,10 +239,11 @@ func (c *TlsClient) processResponses() {
 			switch resp {
 
 			case respAckNOK:
+				c.opt.Debug.Notice("Ack received: %s", logerror.ErrInvalidEntry.Error())
 				c.ch.Ack()
-				c.error(logerror.ErrInvalidEntry)
 
 			case respAckOK:
+				c.opt.Debug.Info("Ack reveived!")
 				c.ch.Ack()
 
 			}
@@ -242,7 +256,7 @@ func (c *TlsClient) setupDialer() {
 	c.dialer = tls.Dialer{
 		Config: &tls.Config{
 			GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-				c.debug("the server is requesting a certificate")
+				c.opt.Debug.Debug("the server is requesting a certificate")
 				return cert, nil
 			},
 			RootCAs:            c.opt.RootCa.X509Pool(),
@@ -259,7 +273,7 @@ func (c *TlsClient) setupDialer() {
 
 	if c.opt.Debug != nil {
 		c.dialer.NetDialer.Control = func(network, address string, _ syscall.RawConn) error {
-			c.debug("dialing " + address + " over " + network + "...")
+			c.opt.Debug.Debug("dialing " + address + " over " + network + "...")
 			return nil
 		}
 	}
@@ -271,12 +285,14 @@ func (c *TlsClient) ensureConnection(ctx context.Context) {
 
 	if c.conn == nil {
 		c.tryConnect(ctx)
+	} else {
+		c.opt.Debug.Debug("Ensured connection")
 	}
 }
 
 func (c *TlsClient) tryConnect(ctx context.Context) {
 	if err := c.reconnect(ctx); err != nil {
-		c.error(err)
+		c.opt.Debug.Notice("Failed to connect: %s", err.Error())
 		c.retryConnect(ctx)
 	}
 }
@@ -285,10 +301,13 @@ func (c *TlsClient) retryConnect(ctx context.Context) {
 	c.backoff.Reset()
 
 	for {
-		time.Sleep(c.backoff.Duration())
+		dur := c.backoff.Duration()
+
+		c.opt.Debug.Debug("Retrying to connect in %.2f seconds", dur.Seconds())
+		time.Sleep(dur)
 
 		if err := c.connect(ctx); err != nil {
-			c.error(err)
+			c.opt.Debug.Notice("Failed to reconnect: %s", err.Error())
 			continue
 		}
 
@@ -297,7 +316,6 @@ func (c *TlsClient) retryConnect(ctx context.Context) {
 }
 
 func (c *TlsClient) reconnect(ctx context.Context) (err error) {
-	log.Println("reconnecting")
 	if err = c._disconnect(); err != nil {
 		return
 	}
@@ -319,13 +337,14 @@ func (c *TlsClient) connect(ctx context.Context) (err error) {
 		return errors.New("expected TLS connection")
 	}
 
+	c.opt.Debug.Info("Connected!")
+
 	c.setAck(c.conn.ConnectionState().NegotiatedProtocol == protoAck)
 
 	return
 }
 
 func (c *TlsClient) disconnect() (err error) {
-	log.Println("disconnecting...")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -333,10 +352,10 @@ func (c *TlsClient) disconnect() (err error) {
 }
 
 func (c *TlsClient) _disconnect() (err error) {
-	log.Println("disconnecting")
 	if c.conn != nil {
 		err = c.conn.Close()
 		c.conn = nil
+		c.opt.Debug.Debug("Closed connection")
 	}
 
 	return
@@ -344,22 +363,6 @@ func (c *TlsClient) _disconnect() (err error) {
 
 func (c *TlsClient) setAck(ack bool) {
 	c.ack = ack
-}
-
-func (c *TlsClient) error(err error) {
-	if c.opt.ErrorHandler != nil {
-		c.opt.ErrorHandler(err)
-	}
-}
-
-func (c *TlsClient) debug(msg string, args ...any) {
-	if c.opt.Debug != nil {
-		if args == nil {
-			c.opt.Debug(msg)
-		} else {
-			c.opt.Debug(fmt.Sprintf(msg, args...))
-		}
-	}
 }
 
 func (*TlsClient) entrySize(b []byte) int {

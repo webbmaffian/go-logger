@@ -30,8 +30,7 @@ type TlsServerOptions struct {
 	EntryProc     logger.EntryProcessor
 	ClientTimeout time.Duration
 	Auth          func(ctx context.Context, x509Cert *x509.Certificate) (err error)
-	ErrorHandler  func(err error)
-	Debug         func(msg string)
+	Debug         Debugger
 	Clock         fastime.Fastime
 	Log           *logger.Logger
 	NoCopy        bool
@@ -53,6 +52,10 @@ func (opt *TlsServerOptions) setDefaults(ctx context.Context) {
 	if opt.Log == nil {
 		pool, _ := logger.NewPool(logger.NewDummyWriter(ctx))
 		opt.Log = pool.Logger()
+	}
+
+	if opt.Debug == nil {
+		opt.Debug = nilDebugger{}
 	}
 }
 
@@ -128,8 +131,11 @@ func NewTlsServer(ctx context.Context, opt TlsServerOptions) (s *TlsServer, err 
 }
 
 func (s *TlsServer) acceptConnections(ctx context.Context) {
-	s.opt.Log.Info("Starting TCP server at %s", s.opt.Address).Send()
-	defer s.opt.Log.Info("Stopping TCP server at %s", s.opt.Address).Send()
+	s.opt.Debug.Info("Starting TCP server at %s", s.opt.Address)
+	defer s.opt.Debug.Info("Stopping TCP server at %s", s.opt.Address)
+
+	// s.opt.Log.Info("Starting TCP server at %s", s.opt.Address).Send()
+	// defer s.opt.Log.Info("Stopping TCP server at %s", s.opt.Address).Send()
 
 	for {
 		conn, err := s.listener.Accept()
@@ -141,7 +147,8 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 			continue
 		}
 
-		s.opt.Log.Debug("Incoming TCP connection from %s", addrIp(conn.RemoteAddr())).Send()
+		// s.opt.Log.Debug("Incoming TCP connection from %s", addrIp(conn.RemoteAddr())).Send()
+		s.opt.Debug.Debug("Incoming TCP connection from %s", addrIp(conn.RemoteAddr()))
 
 		if tlsConn, ok := conn.(*tls.Conn); ok {
 			go func(tlsConn *tls.Conn) {
@@ -152,17 +159,21 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 
 				if err := s.handleConnection(ctx, tlsConn, log); err != nil {
 					if err == io.EOF {
-						log.Debug("Connection closed by client").Send()
+						// log.Debug("Connection closed by client").Send()
+						s.opt.Debug.Debug("Connection closed")
 					} else {
-						log.Send(err)
+						s.opt.Debug.Error(err)
+						// log.Send(err)
 					}
 				}
 			}(tlsConn)
 		} else {
 			if err := conn.Close(); err != nil {
-				s.opt.Log.Notice(err.Error()).Tag(addrIp(conn.RemoteAddr())).Send()
+				s.opt.Debug.Notice("Error for %s: %s", addrIp(conn.RemoteAddr()), err.Error())
+				// s.opt.Log.Notice(err.Error()).Tag(addrIp(conn.RemoteAddr())).Send()
 			} else {
-				s.opt.Log.Notice("Connection not TLS - closed by server").Tag(addrIp(conn.RemoteAddr())).Send()
+				s.opt.Debug.Notice("Connection from %s not TLS - closed by server", addrIp(conn.RemoteAddr()))
+				// s.opt.Log.Notice("Connection not TLS - closed by server").Tag(addrIp(conn.RemoteAddr())).Send()
 			}
 
 		}
@@ -228,6 +239,7 @@ func (s *TlsServer) acquireConn(tlsConn *tls.Conn, log *logger.Logger) (conn *tl
 	conn.conn = tlsConn
 	conn.ack = state.NegotiatedProtocol == protoAck
 	conn.log = log.Tag(certId)
+	conn.debug = s.opt.Debug
 	conn.timeConnected = s.opt.Clock.UnixNow()
 	conn.timeLastActive = conn.timeConnected
 
@@ -239,6 +251,7 @@ func (s *TlsServer) releaseConn(conn *tlsServerConn) {
 	conn.conn = nil
 	conn.validBucketIds = nil
 	conn.log = nil
+	conn.debug = nil
 	conn.pingsReceived = 0
 	conn.pongsSent = 0
 	conn.entriesReceived = 0
