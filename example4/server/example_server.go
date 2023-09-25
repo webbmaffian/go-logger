@@ -33,7 +33,7 @@ func startServer(ctx context.Context, certs *example3.Certs) (err error) {
 		RootCa:        certs.RootCa,
 		EntryProc:     &entryEchoer{},
 		Debug:         peer.DebuggerStdout(),
-		ClientTimeout: time.Second * 10,
+		ClientTimeout: time.Second * 5,
 	}); err != nil {
 		return
 	}

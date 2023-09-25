@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -81,8 +80,11 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 			// entry := l.Err("Foobar: %d with 50%% off", "123").Cat(1).Tag("127.0.0.1", "foo@bar.baz", 403).Meta("Specific error", "räksmörgås")
 			entry.Send()
 
-			os.Stdout.WriteString(fmt.Sprintf("Sent %4d\r", i+1))
-			time.Sleep(time.Second * 6)
+			// os.Stdout.WriteString(fmt.Sprintf("Sent %4d\r", i+1))
+
+			// if i == 4 {
+			// 	time.Sleep(time.Second * 6)
+			// }
 
 			// log.Println("\n" + example3.FormatEntry(entry, "<"))
 			// time.Sleep(time.Second)
@@ -96,7 +98,11 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 	// log.Println("waiting 3 seconds")
 	// time.Sleep(time.Second * 3)
 
-	<-ctx.Done()
+	// <-ctx.Done()
+
+	graceCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	client.Close(graceCtx)
 
 	return
 }

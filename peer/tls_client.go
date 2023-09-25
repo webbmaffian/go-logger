@@ -15,8 +15,8 @@ import (
 	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
+	"github.com/webbmaffian/go-logger/internal/channel"
 	"github.com/webbmaffian/go-logger/logerror"
-	"github.com/webbmaffian/go-mad/channel"
 )
 
 const (
@@ -31,7 +31,7 @@ var _ logger.Client = (*TlsClient)(nil)
 type TlsClient struct {
 	conn    *tls.Conn
 	dialer  tls.Dialer
-	ch      *channel.AckByteChannel
+	ch      *channel.ByteChannel
 	clock   fastime.Fastime
 	opt     TlsClientOptions
 	backoff backoff.Backoff
@@ -81,6 +81,7 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	}
 
 	c = &TlsClient{
+		ch:    channel.NewByteChannel(opt.BufferSize, logger.MaxEntrySize),
 		opt:   opt,
 		clock: fastime.New().StartTimerD(ctx, time.Second),
 		backoff: backoff.Backoff{
@@ -90,12 +91,7 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 		},
 	}
 
-	if c.ch, err = channel.NewAckByteChannel(opt.BufferFilepath, opt.BufferSize, logger.MaxEntrySize, true); err != nil {
-		return
-	}
-
 	c.opt.Debug.Debug("%d len, %d unread, %d unack", c.ch.Len(), c.ch.Unread(), c.ch.AwaitingAck())
-
 	c.setupDialer()
 
 	go c.processEntries(ctx)
@@ -163,7 +159,7 @@ func (c *TlsClient) processEntries(ctx context.Context) {
 
 		c.ensureConnection(ctx)
 
-		if err := c.ch.ReadToCallback(c.processEntry, true); err != nil && err != channel.ErrEmpty {
+		if err := c.ch.ReadToCallback(c.processEntry, true); err != nil && err != io.EOF {
 			c.opt.Debug.Error(err)
 			c.disconnect()
 		}
@@ -193,6 +189,7 @@ func (c *TlsClient) processEntry(b []byte) error {
 	}
 
 	c.opt.Debug.Info("Sent %d bytes: %v", size, b)
+	time.Sleep(time.Second)
 
 	return nil
 }
