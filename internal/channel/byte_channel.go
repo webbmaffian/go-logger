@@ -119,7 +119,7 @@ func (ch *ByteChannel) write(cb func([]byte)) {
 	}
 
 	ch.itemsWritten++
-	ch.readCond.Signal()
+	ch.readCond.Broadcast()
 }
 
 // Wait until there is anything to read
@@ -206,8 +206,6 @@ func (ch *ByteChannel) read() []byte {
 }
 
 func (ch *ByteChannel) undoRead() {
-	ch.startIdx = ch.index(-1)
-	// ch.length++
 	ch.awaitingAck--
 	ch.itemsRead--
 }
@@ -236,7 +234,7 @@ func (ch *ByteChannel) CloseWriting() {
 
 	if !ch.closedWriting {
 		ch.closedWriting = true
-		ch.readCond.Signal()
+		ch.writeCond.Broadcast()
 	}
 }
 

@@ -173,6 +173,11 @@ func (c *TlsClient) processEntries(ctx context.Context) {
 func (c *TlsClient) processEntry(b []byte) error {
 	var bytesWritten int
 	size := c.entrySize(b)
+
+	if size == 0 {
+		c.error(errors.New("size zero - this should not happen"))
+	}
+
 	b = b[:size]
 
 	for bytesWritten < size {
