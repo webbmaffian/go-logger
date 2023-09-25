@@ -31,6 +31,13 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/example4/client"
+        },
+		{
+            "name": "Launch example4 server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/example4/server"
         }
     ]
 }

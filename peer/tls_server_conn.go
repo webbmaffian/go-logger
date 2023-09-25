@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log"
 	"time"
 
 	"github.com/kpango/fastime"
@@ -37,12 +38,19 @@ type tlsServerConn struct {
 func (conn *tlsServerConn) listen(ctx context.Context) (err error) {
 	for {
 		if err = conn.handleEntry(ctx); err != nil {
+			log.Println(err)
+			if conn.ack {
+				if err := conn.sendAck(respAckNOK); err != nil {
+					conn.log.Send(err)
+				}
+			}
+
 			return
 		}
 
 		if conn.ack {
-			if err = conn.sendAck(); err != nil {
-				return
+			if err := conn.sendAck(respAckOK); err != nil {
+				conn.log.Send(err)
 			}
 		}
 	}
@@ -96,22 +104,8 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 	return
 }
 
-func (conn *tlsServerConn) sendAck() (err error) {
-	entryId := conn.buf[6 : 6+xidLen]
-	written := 0
-
-	for written < xidLen {
-		s, err := conn.conn.Write(entryId[written:])
-		written += s
-
-		if err == nil {
-			continue
-		}
-
-		if err != io.ErrShortWrite {
-			return err
-		}
-	}
+func (conn *tlsServerConn) sendAck(ack respType) (err error) {
+	_, err = conn.conn.Write([]byte{byte(ack)})
 
 	return
 }

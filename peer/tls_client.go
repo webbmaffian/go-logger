@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"syscall"
@@ -16,6 +17,7 @@ import (
 	"github.com/kpango/fastime"
 	"github.com/webbmaffian/go-logger"
 	"github.com/webbmaffian/go-logger/auth"
+	"github.com/webbmaffian/go-logger/logerror"
 	"github.com/webbmaffian/go-mad/channel"
 )
 
@@ -31,27 +33,37 @@ var _ logger.Client = (*TlsClient)(nil)
 type TlsClient struct {
 	conn    *tls.Conn
 	dialer  tls.Dialer
-	ch      *channel.MemoryByteChannel
+	ch      *channel.AckByteChannel
 	clock   fastime.Fastime
 	opt     TlsClientOptions
 	backoff backoff.Backoff
+	mu      sync.Mutex
 	ack     bool
-	cond    sync.Cond
 }
 
 type TlsClientOptions struct {
-	Address      string           // Host and port (e.g. 127.0.0.1:4610) that the client should connect to.
-	PrivateKey   auth.PrivateKey  // Private key, used for encryption and authentication.
-	Certificate  auth.Certificate // Certificate, used for encryption and authentication.
-	RootCa       auth.Certificate // Root certificate authority, used for authenticating the server.
-	BufferSize   int              // Number of entries in the buffer. Default: 100
-	ErrorHandler func(err error)  // Callback for non-fatal errors.
-	Debug        func(msg string) // Callback for debugging events.
+	Address          string           // Host and port (e.g. 127.0.0.1:4610) that the client should connect to.
+	PrivateKey       auth.PrivateKey  // Private key, used for encryption and authentication.
+	Certificate      auth.Certificate // Certificate, used for encryption and authentication.
+	RootCa           auth.Certificate // Root certificate authority, used for authenticating the server.
+	BufferFilepath   string           // Used for the queue buffer of log entries. Default: logs.bin
+	BufferSize       int              // Number of entries in the buffer. Default: 100
+	ServerAckTimeout time.Duration
+	ErrorHandler     func(err error)  // Callback for non-fatal errors.
+	Debug            func(msg string) // Callback for debugging events.
 }
 
 func (opt *TlsClientOptions) setDefaults() {
+	if opt.BufferFilepath == "" {
+		opt.BufferFilepath = "logs.bin"
+	}
+
 	if opt.BufferSize <= 0 {
-		opt.BufferSize = 128
+		opt.BufferSize = 100
+	}
+
+	if opt.ServerAckTimeout <= 0 {
+		opt.ServerAckTimeout = time.Second * 3
 	}
 }
 
@@ -68,10 +80,8 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	}
 
 	c = &TlsClient{
-		ch:    channel.NewMemoryByteChannel(opt.BufferSize, logger.MaxEntrySize),
 		opt:   opt,
 		clock: fastime.New().StartTimerD(ctx, time.Second),
-		cond:  sync.Cond{L: &sync.Mutex{}},
 		backoff: backoff.Backoff{
 			Factor: 2,
 			Min:    time.Second,
@@ -79,9 +89,14 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 		},
 	}
 
+	if c.ch, err = channel.NewAckByteChannel(opt.BufferFilepath, opt.BufferSize, logger.MaxEntrySize, true); err != nil {
+		return
+	}
+
 	c.setupDialer()
 
 	go c.processEntries(ctx)
+	go c.processResponses()
 
 	go func() {
 		<-ctx.Done()
@@ -91,23 +106,27 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 	return
 }
 
-func (c *TlsClient) WaitUntilSent(ctx context.Context) error {
-	return c.ch.WaitForSync(ctx)
+func (c *TlsClient) WaitUntilSent() error {
+	return c.ch.WaitUntilEmpty()
 }
 
 // Close the client gracefully. Will block until closed, or the context got cancelled.
 func (c *TlsClient) Close(ctx context.Context) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		<-ctx.Done()
+		c.close()
+	}()
 
 	// Ensure that no more entries are written
 	c.ch.CloseWriting()
 
 	// Wait until all written entries have been sent, or abort on context cancellation
-	if err = c.WaitUntilSent(ctx); err != nil {
+	if err = c.WaitUntilSent(); err != nil {
 		return
 	}
-
-	// Close channel (and memory-mapped file)
-	c.close()
 
 	return c.conn.Close()
 }
@@ -130,9 +149,10 @@ func (c *TlsClient) ProcessEntry(_ context.Context, e *logger.Entry) (err error)
 
 func (c *TlsClient) processEntries(ctx context.Context) {
 	for {
-		ok := c.ch.Wait()
+		_, err := c.ch.Wait()
 
-		if !ok {
+		if err != nil {
+			c.error(err)
 			break
 		}
 
@@ -140,7 +160,7 @@ func (c *TlsClient) processEntries(ctx context.Context) {
 
 		if err := c.ch.ReadToCallback(c.processEntry, true); err != nil && err != channel.ErrEmpty {
 			c.error(err)
-			c.tryConnect(ctx)
+			c.disconnect()
 		}
 	}
 
@@ -170,6 +190,53 @@ func (c *TlsClient) processEntry(b []byte) error {
 	return nil
 }
 
+func (c *TlsClient) processResponses() {
+	var buf [1]byte
+
+	for {
+		_, err := c.ch.WaitUntilRead()
+
+		if err != nil {
+			c.error(err)
+			break
+		}
+
+		if !c.ack || c.conn == nil {
+			continue
+		}
+
+		c.conn.SetReadDeadline(c.clock.Now().Add(c.opt.ServerAckTimeout))
+		n, err := c.conn.Read(buf[:])
+
+		if err != nil && err != io.EOF {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				c.debug(err.Error())
+			} else {
+				c.error(err)
+			}
+
+			c.disconnect()
+			c.ch.Rewind()
+			continue
+		}
+
+		if n != 0 {
+			resp := respType(buf[0])
+
+			switch resp {
+
+			case respAckNOK:
+				c.ch.Ack()
+				c.error(logerror.ErrInvalidEntry)
+
+			case respAckOK:
+				c.ch.Ack()
+
+			}
+		}
+	}
+}
+
 func (c *TlsClient) setupDialer() {
 	cert := c.opt.Certificate.TLS(c.opt.PrivateKey)
 	c.dialer = tls.Dialer{
@@ -181,7 +248,7 @@ func (c *TlsClient) setupDialer() {
 			RootCAs:            c.opt.RootCa.X509Pool(),
 			MinVersion:         tls.VersionTLS13,
 			MaxVersion:         tls.VersionTLS13,
-			NextProtos:         []string{proto},
+			NextProtos:         []string{protoAck, proto},
 			ClientSessionCache: tls.NewLRUClientSessionCache(8),
 			Time:               c.clock.Now,
 		},
@@ -199,6 +266,9 @@ func (c *TlsClient) setupDialer() {
 }
 
 func (c *TlsClient) ensureConnection(ctx context.Context) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.conn == nil {
 		c.tryConnect(ctx)
 	}
@@ -227,7 +297,8 @@ func (c *TlsClient) retryConnect(ctx context.Context) {
 }
 
 func (c *TlsClient) reconnect(ctx context.Context) (err error) {
-	if err = c.disconnect(); err != nil {
+	log.Println("reconnecting")
+	if err = c._disconnect(); err != nil {
 		return
 	}
 
@@ -254,6 +325,15 @@ func (c *TlsClient) connect(ctx context.Context) (err error) {
 }
 
 func (c *TlsClient) disconnect() (err error) {
+	log.Println("disconnecting...")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c._disconnect()
+}
+
+func (c *TlsClient) _disconnect() (err error) {
+	log.Println("disconnecting")
 	if c.conn != nil {
 		err = c.conn.Close()
 		c.conn = nil
@@ -263,11 +343,7 @@ func (c *TlsClient) disconnect() (err error) {
 }
 
 func (c *TlsClient) setAck(ack bool) {
-	c.cond.L.Lock()
-	defer c.cond.L.Unlock()
-
 	c.ack = ack
-	c.cond.Signal()
 }
 
 func (c *TlsClient) error(err error) {

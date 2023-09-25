@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/rs/xid"
@@ -51,15 +50,16 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 		ErrorHandler: func(err error) {
 			log.Println("client:", err)
 		},
-		// Debug: func(msg string) {
-		// 	log.Println("client:", msg)
-		// },
+		Debug: func(msg string) {
+			log.Println("client:", msg)
+		},
 	}); err != nil {
 		return
 	}
 
 	if pool, err = logger.NewPool(client, logger.PoolOptions{
-		BucketId: 1684512816,
+		// BucketId: 1684512816,
+		BucketId: 123,
 	}); err != nil {
 		return
 	}
@@ -73,7 +73,7 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 	log.Println("waiting 3 seconds")
 	time.Sleep(time.Second * 3)
 
-	for i := 0; i < 1000_000; i++ {
+	for i := 0; i < 10; i++ {
 		if err = ctx.Err(); err != nil {
 			return
 		}
@@ -125,13 +125,13 @@ func startLiveClient(ctx context.Context) (err error) {
 		PrivateKey:  certs.ClientKey,
 		Certificate: certs.ClientCert,
 		RootCa:      certs.RootCa,
-		BufferSize:  500,
+		BufferSize:  128,
 		ErrorHandler: func(err error) {
 			log.Println("client:", err)
 		},
-		// Debug: func(msg string) {
-		// 	log.Println("client:", msg)
-		// },
+		Debug: func(msg string) {
+			log.Println("client:", msg)
+		},
 	}); err != nil {
 		return
 	}
@@ -150,20 +150,25 @@ func startLiveClient(ctx context.Context) (err error) {
 
 	// log.Println("waiting 3 seconds")
 	// time.Sleep(time.Second * 3)
+	l.Info("First message").Send()
+	time.Sleep(time.Second * 70)
+	l.Info("Second message").Send()
+	time.Sleep(time.Second * 70)
+	l.Info("Third message").Send()
 
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
-	for worker := 0; worker < 1; worker++ {
-		wg.Add(1)
-		go func(worker int) {
-			for i := 0; i < 100; i++ {
-				l.Info("Msg %d from worker %d").Tag(i+1, worker+1, "a", "b", "c", "d", "e").Meta("Specific error", "räksmörgås").Send()
-				time.Sleep(time.Millisecond)
-			}
+	// for worker := 0; worker < 1; worker++ {
+	// 	wg.Add(1)
+	// 	go func(worker int) {
+	// 		for i := 0; i < 100; i++ {
+	// 			l.Info("Msg %d from worker %d").Tag(i+1, worker+1, "a", "b", "c", "d", "e").Meta("Specific error", "räksmörgås").Send()
+	// 			time.Sleep(time.Millisecond)
+	// 		}
 
-			wg.Done()
-		}(worker)
-	}
+	// 		wg.Done()
+	// 	}(worker)
+	// }
 
 	// for i := 0; i < 10; i++ {
 	// 	if err = ctx.Err(); err != nil {
@@ -182,7 +187,7 @@ func startLiveClient(ctx context.Context) (err error) {
 
 	// os.Stdout.WriteString("\n")
 
-	wg.Wait()
+	// wg.Wait()
 	log.Println("done")
 
 	if tlsClient, ok := client.(*peer.TlsClient); ok {
