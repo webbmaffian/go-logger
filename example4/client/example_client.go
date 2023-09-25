@@ -47,7 +47,7 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 		Certificate: certs.ClientCert,
 		RootCa:      certs.RootCa,
 		BufferSize:  100,
-		Debug:       peer.DebuggerStdout(),
+		WriteMethod: peer.WriteOrBlock,
 	}); err != nil {
 		return
 	}
@@ -71,7 +71,7 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 	// time.Sleep(time.Second * 3)
 
 	if true {
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 500; i++ {
 			if err = ctx.Err(); err != nil {
 				return
 			}

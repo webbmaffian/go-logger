@@ -24,7 +24,6 @@ type tlsServerConn struct {
 	entry            *logger.Entry
 	conn             *tls.Conn
 	log              *logger.Logger
-	debug            Debugger
 	clientTimeout    time.Duration
 	timeConnected    int64
 	timeLastActive   int64
@@ -88,8 +87,6 @@ func (conn *tlsServerConn) handleEntry(ctx context.Context) (err error) {
 	if _, err = io.ReadFull(conn.conn, conn.buf[2:size]); err != nil {
 		return
 	}
-
-	conn.debug.Info("Received %d bytes: %v", size, conn.buf[:size])
 
 	if !conn.validBucketId() {
 		return logger.ErrForbiddenBucket

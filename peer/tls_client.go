@@ -7,7 +7,7 @@ import (
 	"errors"
 	"io"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -27,14 +27,13 @@ var _ logger.Client = (*TlsClient)(nil)
 
 type TlsClient struct {
 	ctxCancel context.CancelFunc
-	conn      *tls.Conn
+	conn      atomic.Pointer[tls.Conn]
 	dialer    tls.Dialer
 	ch        *channel.ByteChannel
 	clock     fastime.Fastime
 	opt       TlsClientOptions
 	backoff   backoff.Backoff
-	mu        sync.Mutex
-	ack       bool
+	write     func(func([]byte)) bool
 }
 
 type TlsClientOptions struct {
@@ -43,6 +42,7 @@ type TlsClientOptions struct {
 	Certificate      auth.Certificate // Certificate, used for encryption and authentication.
 	RootCa           auth.Certificate // Root certificate authority, used for authenticating the server.
 	BufferSize       int              // Number of entries in the buffer. Default: 100
+	WriteMethod      WriteMethod      // What should happen if the buffer is full. Default: WriteOrReplace (replace oldest)
 	ServerAckTimeout time.Duration
 	ErrorHandler     func(error)
 }
@@ -89,6 +89,14 @@ func NewTlsClient(opt TlsClientOptions) (c *TlsClient, err error) {
 
 	c.setupDialer()
 
+	if c.opt.WriteMethod == WriteOrBlock {
+		c.write = c.ch.WriteOrBlock
+	} else if c.opt.WriteMethod == WriteOrFail {
+		c.write = c.ch.WriteOrFail
+	} else {
+		c.write = c.ch.WriteOrReplace
+	}
+
 	go c.processEntries(ctx)
 	go c.processResponses()
 
@@ -127,7 +135,7 @@ func (c *TlsClient) CloseGracefully(timeout time.Duration) (err error) {
 func (c *TlsClient) Close() error {
 	c.ctxCancel()
 	c.ch.Close()
-	return c._disconnect()
+	return c.disconnect()
 }
 
 func (c *TlsClient) Now() time.Time {
@@ -135,7 +143,7 @@ func (c *TlsClient) Now() time.Time {
 }
 
 func (c *TlsClient) ProcessEntry(_ context.Context, e *logger.Entry) (err error) {
-	c.ch.WriteOrReplace(func(b []byte) {
+	c.write(func(b []byte) {
 		e.Encode(b)
 	})
 
@@ -168,7 +176,7 @@ func (c *TlsClient) processEntry(b []byte) error {
 	b = b[:size]
 
 	for bytesWritten < size {
-		s, err := c.conn.Write(b[bytesWritten:])
+		s, err := c.conn.Load().Write(b[bytesWritten:])
 		bytesWritten += s
 
 		if err == nil {
@@ -194,12 +202,14 @@ func (c *TlsClient) processResponses() {
 			break
 		}
 
-		if !c.ack || c.conn == nil {
+		conn := c.conn.Load()
+
+		if conn == nil {
 			continue
 		}
 
-		c.conn.SetReadDeadline(c.clock.Now().Add(c.opt.ServerAckTimeout))
-		n, err := c.conn.Read(buf[:])
+		conn.SetReadDeadline(c.clock.Now().Add(c.opt.ServerAckTimeout))
+		n, err := conn.Read(buf[:])
 
 		if err != nil {
 			c.disconnect()
@@ -234,10 +244,7 @@ func (c *TlsClient) setupDialer() {
 }
 
 func (c *TlsClient) ensureConnection(ctx context.Context) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.conn == nil {
+	if c.conn.Load() == nil {
 		c.tryConnect(ctx)
 	}
 }
@@ -263,7 +270,7 @@ func (c *TlsClient) retryConnect(ctx context.Context) {
 }
 
 func (c *TlsClient) reconnect(ctx context.Context) (err error) {
-	if err = c._disconnect(); err != nil {
+	if err = c.disconnect(); err != nil {
 		return
 	}
 
@@ -280,23 +287,26 @@ func (c *TlsClient) connect(ctx context.Context) (err error) {
 		return
 	}
 
-	if c.conn, ok = conn.(*tls.Conn); !ok {
+	tlsConn, ok := conn.(*tls.Conn)
+
+	if !ok {
 		return errors.New("expected TLS connection")
 	}
 
-	c.ack = c.conn.ConnectionState().NegotiatedProtocol == protoV11Ack
+	if tlsConn.ConnectionState().NegotiatedProtocol != protoV11Ack {
+		return errors.New("unsupported protocol")
+	}
+
+	c.conn.Store(tlsConn)
 
 	return
 }
 
 func (c *TlsClient) disconnect() (err error) {
-	return c._disconnect()
-}
+	conn := c.conn.Swap(nil)
 
-func (c *TlsClient) _disconnect() (err error) {
-	if c.conn != nil {
-		err = c.conn.Close()
-		c.conn = nil
+	if conn != nil {
+		err = conn.Close()
 	}
 
 	return
