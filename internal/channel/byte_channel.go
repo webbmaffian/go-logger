@@ -2,7 +2,6 @@ package channel
 
 import (
 	"io"
-	"os"
 	"sync"
 )
 
@@ -11,7 +10,6 @@ type ByteChannel struct {
 	readCond      sync.Cond // Awaited by readers, notified by writers.
 	writeCond     sync.Cond // Awaited by writers, notified by readers.
 	mu            sync.Mutex
-	file          *os.File
 	itemSize      int64
 	startIdx      int64
 	awaitingAck   int64
@@ -232,18 +230,6 @@ func (ch *ByteChannel) Ack() {
 	ch.writeCond.Broadcast()
 }
 
-func (ch *ByteChannel) Flush() error {
-	ch.mu.Lock()
-	defer ch.mu.Unlock()
-
-	return ch.flush()
-}
-
-func (ch *ByteChannel) flush() error {
-	// TODO: Support dump to file
-	return nil
-}
-
 func (ch *ByteChannel) CloseWriting() {
 	ch.mu.Lock()
 	defer ch.mu.Unlock()
@@ -254,20 +240,16 @@ func (ch *ByteChannel) CloseWriting() {
 	}
 }
 
-func (ch *ByteChannel) Close() (err error) {
+func (ch *ByteChannel) Close() {
 	ch.mu.Lock()
 	defer ch.mu.Unlock()
 
-	ch.closed = true
-	ch.closedWriting = true
-	ch.readCond.Broadcast()
-	ch.writeCond.Broadcast()
-
-	if err = ch.flush(); err != nil {
-		return
+	if !ch.closed {
+		ch.closed = true
+		ch.closedWriting = true
+		ch.readCond.Broadcast()
+		ch.writeCond.Broadcast()
 	}
-
-	return ch.file.Close()
 }
 
 func (ch *ByteChannel) Rewind() (count int64) {

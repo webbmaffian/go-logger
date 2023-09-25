@@ -29,14 +29,15 @@ const xidLen = 12
 var _ logger.Client = (*TlsClient)(nil)
 
 type TlsClient struct {
-	conn    *tls.Conn
-	dialer  tls.Dialer
-	ch      *channel.ByteChannel
-	clock   fastime.Fastime
-	opt     TlsClientOptions
-	backoff backoff.Backoff
-	mu      sync.Mutex
-	ack     bool
+	ctxCancel context.CancelFunc
+	conn      *tls.Conn
+	dialer    tls.Dialer
+	ch        *channel.ByteChannel
+	clock     fastime.Fastime
+	opt       TlsClientOptions
+	backoff   backoff.Backoff
+	mu        sync.Mutex
+	ack       bool
 }
 
 type TlsClientOptions struct {
@@ -68,7 +69,7 @@ func (opt *TlsClientOptions) setDefaults() {
 	}
 }
 
-func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err error) {
+func NewTlsClient(opt TlsClientOptions) (c *TlsClient, err error) {
 	opt.setDefaults()
 
 	if err = opt.Certificate.Validate(opt.PrivateKey); err != nil {
@@ -80,10 +81,13 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 		return
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	c = &TlsClient{
-		ch:    channel.NewByteChannel(opt.BufferSize, logger.MaxEntrySize),
-		opt:   opt,
-		clock: fastime.New().StartTimerD(ctx, time.Second),
+		ctxCancel: cancel,
+		ch:        channel.NewByteChannel(opt.BufferSize, logger.MaxEntrySize),
+		opt:       opt,
+		clock:     fastime.New().StartTimerD(ctx, time.Second),
 		backoff: backoff.Backoff{
 			Factor: 2,
 			Min:    time.Second,
@@ -91,16 +95,10 @@ func NewTlsClient(ctx context.Context, opt TlsClientOptions) (c *TlsClient, err 
 		},
 	}
 
-	c.opt.Debug.Debug("%d len, %d unread, %d unack", c.ch.Len(), c.ch.Unread(), c.ch.AwaitingAck())
 	c.setupDialer()
 
 	go c.processEntries(ctx)
 	go c.processResponses()
-
-	go func() {
-		<-ctx.Done()
-		c.ch.CloseWriting()
-	}()
 
 	return
 }
@@ -110,28 +108,34 @@ func (c *TlsClient) WaitUntilSent() error {
 }
 
 // Close the client gracefully. Will block until closed, or the context got cancelled.
-func (c *TlsClient) Close(ctx context.Context) (err error) {
+func (c *TlsClient) CloseWithContext(ctx context.Context) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	go func() {
 		<-ctx.Done()
-		c.close()
+		c.Close()
 	}()
 
 	// Ensure that no more entries are written
 	c.ch.CloseWriting()
 
-	// Wait until all written entries have been sent, or abort on context cancellation
-	if err = c.WaitUntilSent(); err != nil {
-		return
-	}
-
-	return c.conn.Close()
+	// Wait until all written entries have been sent
+	return c.WaitUntilSent()
 }
 
-func (c *TlsClient) close() error {
-	return c.ch.Close()
+func (c *TlsClient) CloseGracefully(timeout time.Duration) (err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return c.CloseWithContext(ctx)
+}
+
+// Closes forcefully
+func (c *TlsClient) Close() error {
+	c.ctxCancel()
+	c.ch.Close()
+	return c._disconnect()
 }
 
 func (c *TlsClient) Now() time.Time {
@@ -153,7 +157,10 @@ func (c *TlsClient) processEntries(ctx context.Context) {
 		_, err := c.ch.Wait()
 
 		if err != nil {
-			c.opt.Debug.Error(err)
+			if err != io.EOF {
+				c.opt.Debug.Error(err)
+			}
+
 			break
 		}
 
@@ -163,10 +170,6 @@ func (c *TlsClient) processEntries(ctx context.Context) {
 			c.opt.Debug.Error(err)
 			c.disconnect()
 		}
-	}
-
-	if err := c.close(); err != nil {
-		c.opt.Debug.Error(err)
 	}
 }
 
@@ -189,7 +192,6 @@ func (c *TlsClient) processEntry(b []byte) error {
 	}
 
 	c.opt.Debug.Info("Sent %d bytes: %v", size, b)
-	time.Sleep(time.Second)
 
 	return nil
 }

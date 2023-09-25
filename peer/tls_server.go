@@ -161,6 +161,8 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 					if err == io.EOF {
 						// log.Debug("Connection closed by client").Send()
 						s.opt.Debug.Debug("Connection closed")
+					} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						s.opt.Debug.Debug("Idle client - connection closed by server")
 					} else {
 						s.opt.Debug.Error(err)
 						// log.Send(err)
@@ -168,14 +170,9 @@ func (s *TlsServer) acceptConnections(ctx context.Context) {
 				}
 			}(tlsConn)
 		} else {
-			if err := conn.Close(); err != nil {
-				s.opt.Debug.Notice("Error for %s: %s", addrIp(conn.RemoteAddr()), err.Error())
-				// s.opt.Log.Notice(err.Error()).Tag(addrIp(conn.RemoteAddr())).Send()
-			} else {
-				s.opt.Debug.Notice("Connection from %s not TLS - closed by server", addrIp(conn.RemoteAddr()))
-				// s.opt.Log.Notice("Connection not TLS - closed by server").Tag(addrIp(conn.RemoteAddr())).Send()
-			}
-
+			conn.Close()
+			s.opt.Debug.Notice("Connection from %s not TLS - closed by server", addrIp(conn.RemoteAddr()))
+			// s.opt.Log.Notice("Connection not TLS - closed by server").Tag(addrIp(conn.RemoteAddr())).Send()
 		}
 	}
 }

@@ -41,7 +41,7 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 
 	log.Println("starting client")
 
-	if client, err = peer.NewTlsClient(ctx, peer.TlsClientOptions{
+	if client, err = peer.NewTlsClient(peer.TlsClientOptions{
 		Address:     "127.0.0.1:4610",
 		PrivateKey:  certs.ClientKey,
 		Certificate: certs.ClientCert,
@@ -71,10 +71,12 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 	// time.Sleep(time.Second * 3)
 
 	if true {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 5; i++ {
 			if err = ctx.Err(); err != nil {
 				return
 			}
+
+			// time.Sleep(time.Second * 6)
 
 			entry := l.Debug("msg " + strconv.Itoa(i+1))
 			// entry := l.Err("Foobar: %d with 50%% off", "123").Cat(1).Tag("127.0.0.1", "foo@bar.baz", 403).Meta("Specific error", "räksmörgås")
@@ -83,7 +85,7 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 			// os.Stdout.WriteString(fmt.Sprintf("Sent %4d\r", i+1))
 
 			// if i == 4 {
-			// 	time.Sleep(time.Second * 6)
+			// time.Sleep(time.Second * 6)
 			// }
 
 			// log.Println("\n" + example3.FormatEntry(entry, "<"))
@@ -100,17 +102,13 @@ func startClient(ctx context.Context, certs *example3.Certs) (err error) {
 
 	// <-ctx.Done()
 
-	graceCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	client.Close(graceCtx)
-
-	return
+	return client.CloseGracefully(time.Second * 10)
 }
 
 func startLiveClient(ctx context.Context) (err error) {
 	var (
 		pool   *logger.Pool
-		client logger.Client
+		client *peer.TlsClient
 		certs  example3.Certs
 	)
 
@@ -128,7 +126,7 @@ func startLiveClient(ctx context.Context) (err error) {
 
 	log.Println("starting client")
 
-	if client, err = peer.NewTlsClient(ctx, peer.TlsClientOptions{
+	if client, err = peer.NewTlsClient(peer.TlsClientOptions{
 		Address:     "wm.log.center:4610",
 		PrivateKey:  certs.ClientKey,
 		Certificate: certs.ClientCert,
@@ -192,17 +190,17 @@ func startLiveClient(ctx context.Context) (err error) {
 	// wg.Wait()
 	log.Println("done")
 
-	if tlsClient, ok := client.(*peer.TlsClient); ok {
-		log.Println("closing gracefully...")
-		// ctx, cancel := context.WithTimeout(ctx, time.Second*3)
-		// defer cancel()
-		err = tlsClient.Close(ctx)
-	}
+	// if tlsClient, ok := client.(*peer.TlsClient); ok {
+	// 	log.Println("closing gracefully...")
+	// 	// ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+	// 	// defer cancel()
+	// 	err = tlsClient.Close(ctx)
+	// }
 
-	log.Println("done waiting")
+	// log.Println("done waiting")
 
 	// log.Println("waiting 3 seconds")
 	// time.Sleep(time.Second * 3)
 
-	return
+	return client.CloseGracefully(time.Second * 5)
 }
